@@ -1,0 +1,35 @@
+from langgraph.graph import StateGraph, START, END
+from langchain_core.tools import BaseTool
+from .state import AgentState
+from .nodes import (
+    aggregate_and_categorize,
+    make_fetch_template,
+    build_deals,
+)
+from .model import call_model, do_tools, decide_route   # your existing pieces
+
+
+def build_graph(tools: list[BaseTool]) -> StateGraph:
+    workflow = StateGraph(AgentState)
+
+    # 1) model fetches purchase deals + tags via tools
+    workflow.add_node("agent", call_model)
+    workflow.add_node("tools", do_tools(tools))
+
+    # 2) deterministic aggregation + A/B split
+    workflow.add_node("categorize", aggregate_and_categorize)
+
+    # 3) WT template lookup (tool)
+    workflow.add_node("fetch_template", make_fetch_template(tools))
+
+    # 4) clone + stage sale deals
+    workflow.add_node("build_deals", build_deals)
+
+    workflow.add_edge(START, "agent")
+    workflow.add_conditional_edges("agent", decide_route)  # -> 'tools' or END
+    workflow.add_edge("tools", "categorize")
+    workflow.add_edge("categorize", "fetch_template")
+    workflow.add_edge("fetch_template", "build_deals")
+    workflow.add_edge("build_deals", END)
+
+    return workflow.compile()  # TODO: add persistent checkpointer
