@@ -1,0 +1,31 @@
+from langchain_core.tools import BaseTool
+from .graph import build_sales_graph
+
+
+class SalesAgent:
+    """Deterministic agent: categorized MWs in -> staged sale deals out."""
+
+    def __init__(self, tools: list[BaseTool]):
+        self.graph = build_sales_graph(tools)
+
+    def run(
+        self,
+        product_a: list[dict],
+        product_b: list[dict],
+        trade_date: str,
+        deal_date: str,
+    ) -> dict:
+        initial_state = {
+            "product_a": product_a,
+            "product_b": product_b,
+            "trade_date": trade_date,
+            "deal_date": deal_date,
+            "templates": {},
+            "staged_sale_deals": [],
+            "errors": [],
+        }
+        final_state = self.graph.invoke(initial_state)
+        return {
+            "staged_sale_deals": final_state["staged_sale_deals"],
+            "errors": final_state["errors"],
+        }
