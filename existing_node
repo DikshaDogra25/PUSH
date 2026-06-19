@@ -1,0 +1,20 @@
+from sales_agent.agent import SalesAgent
+
+
+def make_create_sales(tools):
+    sales_agent = SalesAgent(tools)   # constructed once, reused
+
+    def create_sales(state):
+        # state["product_a"] / state["product_b"] come from do_format
+        result = sales_agent.run(
+            product_a=state["product_a"],
+            product_b=state["product_b"],
+            trade_date=state["trade_date"],
+            deal_date=state["deal_date"],
+        )
+        return {
+            "staged_sale_deals": result["staged_sale_deals"],
+            "sales_errors": result["errors"],
+        }
+
+    return create_sales
