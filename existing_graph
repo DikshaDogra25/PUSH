@@ -1,0 +1,13 @@
+def build_graph(tools: list[BaseTool]) -> StateGraph:
+    workflow = StateGraph(AgentState)
+    workflow.add_node('agent', call_model)
+    workflow.add_node('tools', do_tools(tools))
+    workflow.add_node('format', do_format)
+    workflow.add_node('create_sales', make_create_sales(tools))   # NEW
+
+    workflow.add_edge(START, 'agent')
+    workflow.add_conditional_edges('agent', decide_route)
+    workflow.add_edge('tools', 'format')
+    workflow.add_edge('format', 'create_sales')                   # CHANGED: was format -> END
+    workflow.add_edge('create_sales', END)                        # NEW
+    return workflow.compile()  # TODO: add persistent checkpointer
