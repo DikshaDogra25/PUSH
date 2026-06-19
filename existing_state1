@@ -1,0 +1,19 @@
+from typing import TypedDict
+
+
+class AgentState(TypedDict):
+    # From call_model / tools
+    messages: list
+    purchase_deals: list[dict]      # from MCP procedure
+    tag_details: list[dict]         # from MCP procedure
+
+    # Deterministic processing
+    product_a: list[dict]           # categorized + aggregated
+    product_b: list[dict]
+    templates: dict                 # (source, product) -> WT template
+
+    # Output
+    staged_sale_deals: list[dict]   # staged, not inserted
+    trade_date: str
+    deal_date: str
+    errors: list[str]
