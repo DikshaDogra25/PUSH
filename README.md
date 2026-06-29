@@ -1,15 +1,28 @@
-def get_product(result_dict, name):
-    """name = 'a' or 'b'. Matches ProductA, product_a, PRODUCT_A, etc."""
-    target = name.lower().replace("_", "")
-    for k, v in result_dict.items():
-        normalized = k.lower().replace("_", "")
-        if normalized == f"product{target}":
-            return v
-    return []
+def build_sale_deals(productA_list, templates) -> str:
+    messages = []
+    for item in productA_list:
+        if templates is None:
+            print(f"Skipping {item['CP']}: no template")
+            continue
+        template = templates.get(item['CP'])
+        if template is None:
+            continue
+        deals = copy.deepcopy(template)
+        if isinstance(deals, dict) and "text" in deals:
+            deal = json.loads(deals["text"])
+            for data in item['data']:
+                he = int(data["HE"])          # 1..25
+                if 1 <= he <= 25:
+                    deal[f"MW{he}"] = data["values"]
+            res = insert_deal(deal, "https://i-dikshad.dev.oati.local/cgi-bin/webplus.dll?script=/webtrader_base/WT_Interfaces/we...")
+            deal_text = res.get("Message", "") if isinstance(res, dict) else str(res)
+            messages.append(deal_text)
+    return "\n".join(m for m in messages if m)
 
-result = test_result.get("view", {}).get("result", {}) or {}
-product_a = get_product(result, "a")
-product_b = get_product(result, "b")
+    finalList = build_sale_deals(productA_list, templates)
+    state["final_output"] = "Success"
+    state["view"] = {"result": finalList}
+    return state    
 
-print("product_a:", product_a)
-print("product_b:", product_b)
+    finalresult = fetch_sales_deal(self, state, {"product_a": product_a, "product_b": product_b})
+    return finalresult
