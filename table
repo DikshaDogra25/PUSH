@@ -1,0 +1,28 @@
+function createData(data) {
+    if (!data || data.length === 0) return `<table class="matrix"></table>`;
+
+    // collect the union of all keys across rows, preserving first-seen order
+    let columns = [];
+    data.forEach(row => {
+        Object.keys(row).forEach(key => {
+            if (!columns.includes(key)) columns.push(key);
+        });
+    });
+
+    let html = `<table class="matrix"><thead><tr>`;
+    columns.forEach(col => {
+        html += `<th>${col}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    data.forEach(row => {
+        html += `<tr>`;
+        columns.forEach(col => {
+            html += `<td>${row[col] ?? ''}</td>`;
+        });
+        html += `</tr>`;
+    });
+
+    html += `</tbody></table>`;
+    return html;
+}
