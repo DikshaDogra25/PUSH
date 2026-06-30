@@ -1,46 +1,21 @@
-function createDealTable(data) {
-    const saleDeals = data.sale_deals || {};
-
-    let html = `<table class="matrix"><thead><tr>`
-             + `<th>Source</th><th>Deal Slot</th><th>Deal Information</th>`
-             + `</tr></thead><tbody>`;
-
-    Object.keys(saleDeals).forEach(source => {
-        const slots = saleDeals[source] || {};
-        const slotNames = Object.keys(slots);
-
-        slotNames.forEach((slotName, i) => {
-            html += `<tr>`;
-
-            // only the first row of each source gets the merged Source cell
-            if (i === 0) {
-                html += `<td rowspan="${slotNames.length}">${source}</td>`;
-            }
-
-            html += `<td>${slotName}</td>`;
-            html += `<td>${renderDealInfo(slots[slotName])}</td>`;
-            html += `</tr>`;
-        });
-    });
-
-    html += `</tbody></table>`;
-    return html;
-}
-
-// renders the third column. Adjust this to taste.
 function renderDealInfo(deal) {
     // empty slot (e.g. SDeal_B: [])
     if (deal == null || (Array.isArray(deal) && deal.length === 0)) {
         return '';
     }
-    // a deal object: show it as a nested key/value table
     if (typeof deal === 'object' && !Array.isArray(deal)) {
-        let inner = `<table class="deal-info">`;
-        Object.keys(deal).forEach(k => {
-            inner += `<tr><td>${k}</td><td>${deal[k] ?? ''}</td></tr>`;
+        const keys = Object.keys(deal);
+
+        let head = `<tr>`;
+        let body = `<tr>`;
+        keys.forEach(k => {
+            head += `<th>${k}</th>`;
+            body += `<td>${deal[k] ?? ''}</td>`;
         });
-        inner += `</table>`;
-        return inner;
+        head += `</tr>`;
+        body += `</tr>`;
+
+        return `<table class="deal-info"><thead>${head}</thead><tbody>${body}</tbody></table>`;
     }
     return String(deal);
 }
