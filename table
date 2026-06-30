@@ -1,6 +1,12 @@
 function createData(data) {
     if (!data || data.length === 0) return `<table class="matrix"></table>`;
 
+    const clean = (v) => {
+        if (v === null || v === undefined) return 0;
+        if (typeof v === 'number' && Number.isNaN(v)) return 0;
+        return v;
+    };
+
     // collect the union of all keys across rows, preserving first-seen order
     let columns = [];
     data.forEach(row => {
@@ -18,7 +24,7 @@ function createData(data) {
     data.forEach(row => {
         html += `<tr>`;
         columns.forEach(col => {
-            html += `<td>${row[col] ?? ''}</td>`;
+            html += `<td>${clean(row[col])}</td>`;
         });
         html += `</tr>`;
     });
