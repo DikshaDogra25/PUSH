@@ -1,34 +1,8 @@
-function createData(data) {
-    if (!data || data.length === 0) return `<table class="matrix"></table>`;
-
-    const clean = (v) => {
-        if (v === null || v === undefined) return 0;
-        if (typeof v === 'number' && Number.isNaN(v)) return 0;
-        return v;
-    };
-
-    // collect the union of all keys across rows, preserving first-seen order
-    let columns = [];
-    data.forEach(row => {
-        Object.keys(row).forEach(key => {
-            if (!columns.includes(key)) columns.push(key);
-        });
-    });
-
-    let html = `<table class="matrix"><thead><tr>`;
-    columns.forEach(col => {
-        html += `<th>${col}</th>`;
-    });
-    html += `</tr></thead><tbody>`;
-
-    data.forEach(row => {
-        html += `<tr>`;
-        columns.forEach(col => {
-            html += `<td>${clean(row[col])}</td>`;
-        });
-        html += `</tr>`;
-    });
-
-    html += `</tbody></table>`;
-    return html;
+function safeParse(text) {
+    // replace bare NaN tokens (not inside strings) with 0
+    const cleaned = text.replace(/:\s*NaN\b/g, ': 0')
+                        .replace(/\bNaN\b/g, '0');  // also catches NaN inside arrays
+    return JSON.parse(cleaned);
 }
+
+const data = safeParse(rawText);
