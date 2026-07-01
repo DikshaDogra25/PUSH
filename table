@@ -29,3 +29,11 @@ else:
     annotated["rule_id"] = self._match_rule_id(annotated[col])
     product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
     annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
+
+compare = sources if mode == "exact" else self._norm(sources)
+lookup = {}
+for r in self.ruleset.active_rules:
+    key = r.source if mode == "exact" else r.source.strip().lower()
+    if key not in lookup:          # keep the first rule for this source
+        lookup[key] = r.id
+return compare.map(lookup).astype("string")
