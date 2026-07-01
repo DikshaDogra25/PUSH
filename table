@@ -1,21 +1,31 @@
-function renderDealInfo(deal) {
-    // empty slot (e.g. SDeal_B: [])
-    if (deal == null || (Array.isArray(deal) && deal.length === 0)) {
-        return '';
-    }
-    if (typeof deal === 'object' && !Array.isArray(deal)) {
-        const keys = Object.keys(deal);
+@dataclass
+class Rule:
+    id: str
+    source: str
+    product: str = ""      # <-- add this
+    description: str = ""
+    active: bool = True
 
-        let head = `<tr>`;
-        let body = `<tr>`;
-        keys.forEach(k => {
-            head += `<th>${k}</th>`;
-            body += `<td>${deal[k] ?? ''}</td>`;
-        });
-        head += `</tr>`;
-        body += `</tr>`;
+Rule(
+    id=r["id"],
+    source=r["source"],
+    product=r.get("product", ""),      # <-- add this
+    description=r.get("description", ""),
+    active=r.get("active", True),
+)
 
-        return `<table class="deal-info"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-    }
-    return String(deal);
-}
+if mode == "regex":
+    norm_sources = sources.astype("string").str.strip()
+    for rule in self.ruleset.active_rules:
+        unmatched = result.isna()
+        hits = norm_sources.str.fullmatch(rule.source.strip(), case=False).fillna(False)
+        result = result.mask(unmatched & hits, rule.id)
+    return result
+
+if annotated.empty:
+    annotated["rule_id"] = pd.Series(dtype="string")
+    annotated["product"] = pd.Series(dtype="string")
+else:
+    annotated["rule_id"] = self._match_rule_id(annotated[col])
+    product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
+    annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
