@@ -1,39 +1,5 @@
-@dataclass
-class Rule:
-    id: str
-    source: str
-    product: str = ""      # <-- add this
-    description: str = ""
-    active: bool = True
+# collect all product values from the 2nd list
+wanted_products = {row["product"] for row in second_list if "product" in row}
 
-Rule(
-    id=r["id"],
-    source=r["source"],
-    product=r.get("product", ""),      # <-- add this
-    description=r.get("description", ""),
-    active=r.get("active", True),
-)
-
-if mode == "regex":
-    norm_sources = sources.astype("string").str.strip()
-    for rule in self.ruleset.active_rules:
-        unmatched = result.isna()
-        hits = norm_sources.str.fullmatch(rule.source.strip(), case=False).fillna(False)
-        result = result.mask(unmatched & hits, rule.id)
-    return result
-
-if annotated.empty:
-    annotated["rule_id"] = pd.Series(dtype="string")
-    annotated["product"] = pd.Series(dtype="string")
-else:
-    annotated["rule_id"] = self._match_rule_id(annotated[col])
-    product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-    annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
-
-compare = sources if mode == "exact" else self._norm(sources)
-lookup = {}
-for r in self.ruleset.active_rules:
-    key = r.source if mode == "exact" else r.source.strip().lower()
-    if key not in lookup:          # keep the first rule for this source
-        lookup[key] = r.id
-return compare.map(lookup).astype("string")
+# keep purchase deals whose Product is in that set
+filtered = [deal for deal in purchase_deals if deal.get("Product") in wanted_products]
