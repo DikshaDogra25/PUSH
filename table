@@ -1,17 +1,54 @@
-import math
+# Genie Platform — Architecture, CI/CD & Review Process Walkthrough
+**Date:** 02 Jul 2026 · **Confidential — internal OATI/Genie**
 
-def replace_nan(obj, fill=0):
-    """Recursively replace NaN / Infinity with `fill` in a nested dict/list.
-    Leaves str, int, bool, None untouched; handles numpy floats too."""
-    if isinstance(obj, dict):
-        return {k: replace_nan(v, fill) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [replace_nan(v, fill) for v in obj]
-    if isinstance(obj, (str, bool, int)) or obj is None:
-        return obj
-    try:
-        if math.isnan(obj) or math.isinf(obj):
-            return fill
-    except (TypeError, ValueError):
-        pass
-    return obj
+## Purpose
+Walkthrough of the target Genie platform model: how it should be packaged and deployed, the GitLab CI/CD pipeline, code-review standards, configuration management, and standard project structure. Positioned against the existing Web Vision bundled model. Points discussed are directional, not finalized.
+
+## 1. Platform architecture & packaging
+- Genie is built as **independent, individually versioned Python packages** (services, utility libraries, and default agents), in contrast to Web Vision's single bundled release.
+- **Trade-off discussed:** independent versioning lets one module get a fix without pulling unrelated changes, but Web Vision's bundle guarantees all modules are certified and released together at a known-good version level.
+- **Key risk / responsibility:** modules must stay backward compatible. Version bumps follow semantic-versioning intent — a breaking change requires bumping the major version and adding a migration/reason note. Ensuring cross-module version compatibility (e.g. module-1 vX certified against module-2 vY) becomes the **platform team's ongoing responsibility**; previously it was easier under one shared ISO infrastructure.
+- Platform is treated as a **library set consumed by applications**, not a monolith that gets deployed as one thing. It provides: base agent classes + utility libraries, common services, and **ready-made default agents** (e.g. generic RAG agent, generic rule agent).
+
+## 2. Deployment model
+- Applications may spin up their **own Genie instance** — potentially with only the module(s) they need.
+- Instances are **multi-tenant in some cases** (e.g. tagging, voice) and **dedicated per use case in others**.
+- An application using only the default agents may need little to no custom code — often just deploying a new instance (plus DB/config as needed). The Web Vision framework's model was noted as not directly applicable here.
+
+## 3. Package registry
+- All releases published to the internal registry with visible version history; installed as standard Python packages via `pip`/`uv add`.
+
+## 4. CI/CD pipeline (GitLab)
+- **Pre-commit hooks (local):** auto-format, lint, and flag code-quality issues before commit. Every project must include the pre-commit config; developers run it locally and fix issues before pushing.
+- **Pipeline stages:** lint → test (unit / integration / end-to-end via pytest markers) → deploy. **Deploy is currently commented out / not yet working.**
+- Pipeline runs on merge requests (and ideally should run on all branches). An MR must pass before it is eligible for review.
+- **Setup per project:** a project access token plus the required CI/CD variables must be configured (request token creation from the JNET team / Joe).
+- **Required project files:** pre-commit config, `.gitignore`, README (setup steps + how to run + commands), `.python-version`, tests with unit/integration markers, and a CHANGELOG.
+
+## 5. Code review process & standards
+- Reviewers should **not** spend effort on syntax/formatting — that is handled by pre-commit/tooling. Focus should be on **what the code actually does** (logic, correctness).
+- MR must be green (pipeline passing) before a reviewer engages.
+- **Size discipline:** keep MRs small (target ≈50 lines, not a hard rule yet); avoid large end-of-work dumps. Break continuous work into incremental MRs. Reviewing a 10,000-line MR is impractical — a concern amplified by AI-generated code volume.
+- GitLab currently allows **only one reviewer at a time**; multiple reviewers must go sequentially.
+- **Action:** create a Genie-specific review **workflow + checklist** (adapt the detailed one already built for the Web Vision team, minus TFS/Web Vision-specifics) and publish it on the GitLab project.
+
+## 6. Configuration management
+- Config via `.env` or `config.yml`; **`.env` takes precedence** over `config.yml`.
+- Ship a **`.env.example`** so that missing credentials/config fail loudly rather than breaking silently at runtime.
+
+## 7. Internal common library
+- An internal shared package ("any-common") provides logging, common classes, and ML Flow setup, reused across modules. Installed like any package; it is **not deployable itself** — it is used to build deployable code. Every project integrates it (e.g. ML Flow).
+
+## 8. Standard project / folder structure
+- Package layout standardized (managed with **UV**, replacing the older tool). Typical structure: `api/` (health endpoint + any exposed endpoints), core logic (nodes, prompts, graph builder), `models/` (Pydantic), `services/` (e.g. LLM), Dockerfile (deployed via gunicorn + uvicorn), and a CLI to run the service.
+- **Consistent naming conventions across all projects** so reviewers can navigate any repo predictably (e.g. always call it the graph builder).
+
+## Open items / gaps & action items
+1. **Continuous deployment not set up** on the Genie side (unlike GSA). At minimum, automate deploy on check-in for dev environments — no manual triggers. → Uncomment/enable the deploy stage and use the available deployment API.
+2. **AI MR-review bot:** current Claude/AI-tooling version in use is very old; the open-source auto-comment-on-MR capability needs the newer (safer) version. → Follow up with Trai's team to update, then set up the bot to auto-comment issues on merge requests.
+3. **Kubernetes / cluster scope:** original intent was **GPU load distribution for LLMs** (using idle GPU capacity via namespaces), **not** managing agents/services. Whether to extend it to agents/services is a **separate discussion** — deferred to another meeting (out of time).
+4. **Do not re-bundle the entire LLM Guard library** into the platform — avoid duplication.
+5. **Reference example:** everyone should review one of the orchestrator projects to see the target structure in practice; write down questions and send them to the platform team.
+6. Draft the review workflow/checklist doc (owners: platform lead + one other) and publish on GitLab.
+
+*Note: transcript quality was rough in places; a few speaker attributions and tool names were left generic where unclear.*
