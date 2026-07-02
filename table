@@ -1,9 +1,3 @@
-def convert_to_table(result) -> str:
-    tags = (result or {}).get("Unschedule Tags") or []
-    if not tags:
-        return ""
-    tags_json = json.dumps(_map_tags(tags), allow_nan=False, ensure_ascii=False)   # JsonSerializer.Serialize(resData)
-    html_data = _load_template().replace(TAGS_TOKEN, tags_json)                     # var htmlData = $@"<html>…{data}…</html>"
-    encoded   = html.escape(html_data, quote=True)                                  # WebUtility.HtmlEncode(htmlData)
-    iframe    = f"<iframe width='100%' height='800' srcdoc=\"{encoded}\"></iframe>" # $@"<iframe … srcdoc=""{encoded}""></iframe>"
-    return iframe.replace("\r\n", "")                                              # html.Replace("\r\n","")
+out = convert_to_table(data)                 # this is already the correct raw string
+with open("test.html", "w", encoding="utf-8") as f:
+    f.write(out)                             # NOT json.dumps(out), NOT print(repr(out))
