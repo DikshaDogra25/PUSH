@@ -1,3 +1,136 @@
-out = convert_to_table(data)                 # this is already the correct raw string
-with open("test.html", "w", encoding="utf-8") as f:
-    f.write(out)                             # NOT json.dumps(out), NOT print(repr(out))
+"""
+Amazon Schedule Planner — dynamic HTML builder (Python).
+
+Injects your result tags into the dashboard and returns the <iframe srcdoc> HTML,
+mirroring the C# ConvertToTable pattern. Robust version: finds the
+`const ORIGINAL_TAGS_DB = ...;` line itself (works on the original Amazon.html —
+no manual token needed) and RAISES if it can't find it, instead of silently
+writing an unchanged file.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import math
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+_MW_KEYS = [f"MW{i}" for i in range(1, 25)]          # MW19 absent -> 0; MW25 ignored
+_TAGS_ASSIGN = re.compile(r"const\s+ORIGINAL_TAGS_DB\s*=\s*[^;]*;")
+
+
+# --------------------------------------------------------------------------- #
+#  NaN handling
+# --------------------------------------------------------------------------- #
+def replace_nan(obj: Any, fill: Any = 0) -> Any:
+    """Recursively replace NaN / Infinity with `fill` in a nested dict/list.
+    Leaves str, int, bool, None untouched; handles numpy floats too."""
+    if isinstance(obj, dict):
+        return {k: replace_nan(v, fill) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [replace_nan(v, fill) for v in obj]
+    if isinstance(obj, (str, bool, int)) or obj is None:
+        return obj
+    try:
+        if math.isnan(obj) or math.isinf(obj):
+            return fill
+    except (TypeError, ValueError):
+        pass
+    return obj
+
+
+def _safe_mw(v: Any) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 0.0
+    v = float(v)
+    return 0.0 if (math.isnan(v) or math.isinf(v)) else v
+
+
+# --------------------------------------------------------------------------- #
+#  Tag mapping: JSON "Unschedule Tags" -> engine tag objects
+# --------------------------------------------------------------------------- #
+def _s(v: Any) -> str:
+    return v.strip() if isinstance(v, str) else ("" if v is None else str(v))
+
+
+def _fmt_ts(raw: Any) -> str:
+    if not raw or not isinstance(raw, str):
+        return ""
+    try:
+        return datetime.fromisoformat(raw.strip()).strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return raw.strip()
+
+
+def _map_tags(unschedule_tags) -> list[dict]:
+    seen: dict[str, int] = {}
+    out: list[dict] = []
+    for t in unschedule_tags:
+        code = _s(t.get("TagCode")) or f"TAG-{t.get('TagIndex', '')}"
+        if code in seen:
+            seen[code] += 1
+            code = f"{code}#{seen[code]}"
+        else:
+            seen[code] = 1
+        mw = max((_safe_mw(t.get(k)) for k in _MW_KEYS), default=0.0)
+        out.append({
+            "id": code,
+            "location": _s(t.get("Source")),
+            "shape": "flat",
+            "mw": round(mw, 1),
+            "sink": _s(t.get("Sink")),
+            "start": _fmt_ts(t.get("StartTime")),
+            "end": _fmt_ts(t.get("StopTime")),
+            "status": "Unscheduled",
+            "product": _s(t.get("product")),
+        })
+    return out
+
+
+# --------------------------------------------------------------------------- #
+#  Injection + HTML build
+# --------------------------------------------------------------------------- #
+def _inject_tags(template: str, tags_json: str) -> str:
+    # lambda replacement so backslashes in tags_json are inserted literally
+    new, n = _TAGS_ASSIGN.subn(lambda m: f"const ORIGINAL_TAGS_DB = {tags_json};",
+                               template, count=1)
+    if n == 0:
+        raise ValueError(
+            "Could not find 'const ORIGINAL_TAGS_DB = ...;' in the template. "
+            "Make sure template_path points to the Amazon dashboard HTML."
+        )
+    return new
+
+
+def build_dashboard_html(result: dict, template_path: str | Path) -> str:
+    """Return the RAW dashboard HTML with your tags injected.
+    Open this directly in a browser / write it to a .html file."""
+    tags_src = (result or {}).get("Unschedule Tags") or []
+    if not tags_src:
+        return ""
+    tags_json = json.dumps(_map_tags(tags_src), allow_nan=False, ensure_ascii=False)
+    template = Path(template_path).read_text(encoding="utf-8")
+    return _inject_tags(template, tags_json)
+
+
+def convert_to_table(result: dict, template_path: str | Path) -> str:
+    """Return the <iframe srcdoc> HTML string (like the C# ConvertToTable).
+    Use this when embedding the result into another page."""
+    raw = build_dashboard_html(result, template_path)
+    if not raw:
+        return ""
+    encoded = html.escape(raw, quote=True)                         # WebUtility.HtmlEncode
+    iframe = f"<iframe width='100%' height='800' srcdoc=\"{encoded}\"></iframe>"
+    return iframe.replace("\r\n", "")
+
+
+if __name__ == "__main__":
+    import sys
+    # usage: python amazon_html.py <finalresult.json> <Amazon.html> <out.html>
+    result = replace_nan(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")), 0)
+    raw = build_dashboard_html(result, sys.argv[2])                # raw = renders when opened
+    Path(sys.argv[3]).write_text(raw, encoding="utf-8")
+    print(f"wrote {sys.argv[3]} ({len(raw)} chars)")
