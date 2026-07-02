@@ -21,6 +21,56 @@ from typing import Any
 _MW_KEYS = [f"MW{i}" for i in range(1, 25)]          # MW19 absent -> 0; MW25 ignored
 _TAGS_ASSIGN = re.compile(r"const\s+ORIGINAL_TAGS_DB\s*=\s*[^;]*;")
 
+# Anchors for the Location Aggregation & Allocation override injection.
+_ENGINE_DEF = re.compile(r"function\s+runAllocationEngine\s*\(\s*\)\s*\{")
+_LOC_ASSIGN = re.compile(r"STATE\.locations\s*=\s*sortedLocations\s*;")
+_ALLOC_KEYS = ("Location Agrregation & Allocation",   # exact key in the result
+               "Location Aggregation & Allocation")   # correctly-spelled fallback
+
+# JS injected once, before runAllocationEngine. Reads the result's ProductA/ProductB
+# per CP and overwrites each matching location's profiles. __ALLOC_JSON__ is filled in.
+_OVERRIDE_JS = r"""
+const RESULT_ALLOCATION = __ALLOC_JSON__;
+function __resAllocToArr(series) {
+  const a = Array(24).fill(0);
+  ((series && series.data) || []).forEach(function (d) {
+    const i = (d.HE | 0) - 1;
+    if (i >= 0 && i < 24) a[i] = Number(d.values) || 0;
+  });
+  return a;
+}
+function applyResultAllocationOverride() {
+  if (typeof RESULT_ALLOCATION === "undefined" || !RESULT_ALLOCATION) return;
+  const byCP = {};
+  (RESULT_ALLOCATION.ProductA || []).forEach(function (s) {
+    const cp = (s.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(s);
+  });
+  (RESULT_ALLOCATION.ProductB || []).forEach(function (s) {
+    const cp = (s.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(s);
+  });
+  STATE.locations.forEach(function (loc) {
+    const cp = byCP[loc.name];
+    if (!cp) return;                       // CP not in result -> leave engine values
+    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
+    loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileTotal = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+    loc.allocA = Math.round(A.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+    loc.allocB = Math.round(B.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+    loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+  });
+  STATE.hourlyProfileA = Array(24).fill(0);
+  STATE.hourlyProfileB = Array(24).fill(0);
+  STATE.locations.forEach(function (loc) {
+    for (let h = 0; h < 24; h++) { STATE.hourlyProfileA[h] += loc.profileA[h]; STATE.hourlyProfileB[h] += loc.profileB[h]; }
+  });
+  for (let h = 0; h < 24; h++) {
+    STATE.hourlyProfileA[h] = Math.round(STATE.hourlyProfileA[h] * 10) / 10;
+    STATE.hourlyProfileB[h] = Math.round(STATE.hourlyProfileB[h] * 10) / 10;
+  }
+}
+"""
+
 
 # --------------------------------------------------------------------------- #
 #  NaN handling
@@ -105,6 +155,36 @@ def _inject_tags(template: str, tags_json: str) -> str:
     return new
 
 
+def _get_allocation(result: dict):
+    for k in _ALLOC_KEYS:
+        v = (result or {}).get(k)
+        if v:
+            return v
+    return None
+
+
+def _inject_allocation(template: str, allocation) -> str:
+    """Inject the ProductA/ProductB override so the Location Aggregation & Allocation
+    tab renders the result's values. No-op if there's no allocation in the result."""
+    if not allocation:
+        return template
+    alloc_json = json.dumps(allocation, allow_nan=False, ensure_ascii=False)
+    block = _OVERRIDE_JS.replace("__ALLOC_JSON__", alloc_json)
+
+    # 1. define data + override function just before the engine
+    template, n1 = _ENGINE_DEF.subn(lambda m: block + "\n  " + m.group(0),
+                                    template, count=1)
+    if n1 == 0:
+        raise ValueError("Could not find runAllocationEngine() to attach the allocation override.")
+
+    # 2. call it right after STATE.locations is set (before profiles are consumed downstream)
+    template, n2 = _LOC_ASSIGN.subn(lambda m: m.group(0) + "\n    applyResultAllocationOverride();",
+                                    template, count=1)
+    if n2 == 0:
+        raise ValueError("Could not find 'STATE.locations = sortedLocations;' to call the override.")
+    return template
+
+
 def build_dashboard_html(result: dict, template_path: str | Path) -> str:
     """Return the RAW dashboard HTML with your tags injected.
     Open this directly in a browser / write it to a .html file."""
@@ -113,7 +193,9 @@ def build_dashboard_html(result: dict, template_path: str | Path) -> str:
         return ""
     tags_json = json.dumps(_map_tags(tags_src), allow_nan=False, ensure_ascii=False)
     template = Path(template_path).read_text(encoding="utf-8")
-    return _inject_tags(template, tags_json)
+    template = _inject_tags(template, tags_json)
+    template = _inject_allocation(template, _get_allocation(result))   # Location A/B from result
+    return template
 
 
 def convert_to_table(result: dict, template_path: str | Path) -> str:
