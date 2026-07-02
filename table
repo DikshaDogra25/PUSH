@@ -1,5 +1,132 @@
-# collect all product values from the 2nd list
-wanted_products = {row["product"] for row in second_list if "product" in row}
+"""
+Amazon Schedule Planner — dynamic HTML builder.
 
-# keep purchase deals whose Product is in that set
-filtered = [deal for deal in purchase_deals if deal.get("Product") in wanted_products]
+Mirrors the C# ConvertToTable pattern in Python: take the already-deserialized
+result (the 3 keys directly), reshape the "Unschedule Tags" into the tag objects
+the dashboard engine expects, inject them into the HTML template at a single
+token, HTML-escape, wrap in an <iframe srcdoc>, and return the HTML string.
+
+Because the engine is kept intact, only the tags come from your payload; the
+engine recomputes Purchase Deals and Product A/B allocation from those tags.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import math
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Iterable
+
+TAGS_TOKEN = "__AMAZON_TAGS_JSON__"
+_TEMPLATE_PATH = Path(__file__).with_name("Amazon_dynamic.html")
+
+# Engine reads these hourly columns (MW19 is absent in the payload -> 0;
+# MW25 is a 25th/DST slot ignored beyond HE24).
+_MW_KEYS = [f"MW{i}" for i in range(1, 25)]
+
+
+def _safe_mw(v: Any) -> float:
+    """None / NaN / Inf / non-numeric -> 0.0 (neutralizes the literal NaN in tags)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 0.0
+    v = float(v)
+    return 0.0 if (math.isnan(v) or math.isinf(v)) else v
+
+
+def _peak_mw(tag: dict) -> float:
+    """Nameplate MW = peak hour of the profile. For average, swap max() for mean."""
+    vals = [_safe_mw(tag.get(k)) for k in _MW_KEYS]
+    return round(max(vals) if vals else 0.0, 1)
+
+
+def _fmt_ts(raw: Any) -> str:
+    """'2025-08-29T00:00:00' -> '2025-08-29 00:00'; falls back to trimmed raw text."""
+    if not raw or not isinstance(raw, str):
+        return ""
+    try:
+        return datetime.fromisoformat(raw.strip()).strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return raw.strip()
+
+
+def _s(v: Any) -> str:
+    return (v or "").strip() if isinstance(v, str) else ("" if v is None else str(v))
+
+
+def _map_tags(unschedule_tags: Iterable[dict]) -> list[dict]:
+    """JSON 'Unschedule Tags' -> engine tag objects (id, location, shape, mw, sink,
+    start, end, status, product). Ids are de-duplicated because the two market-path
+    legs of one tag can share a TagCode."""
+    seen: dict[str, int] = {}
+    tags: list[dict] = []
+
+    for t in unschedule_tags:
+        code = _s(t.get("TagCode")) or f"TAG-{t.get('TagIndex', '')}"
+        if code in seen:
+            seen[code] += 1
+            code = f"{code}#{seen[code]}"
+        else:
+            seen[code] = 1
+
+        tags.append({
+            "id": code,
+            "location": _s(t.get("Source")),   # CP the aggregation keys on
+            "shape": "flat",                    # no shape in payload
+            "mw": _peak_mw(t),
+            "sink": _s(t.get("Sink")),
+            "start": _fmt_ts(t.get("StartTime")),
+            "end": _fmt_ts(t.get("StopTime")),
+            "status": "Unscheduled",
+            "product": _s(t.get("product")),
+        })
+
+    return tags
+
+
+def _load_template(template_path: str | Path | None = None) -> str:
+    path = Path(template_path) if template_path else _TEMPLATE_PATH
+    return path.read_text(encoding="utf-8")
+
+
+def convert_to_table(result: dict, template_path: str | Path | None = None) -> str:
+    """Build the dashboard HTML from the deserialized result (3 keys directly).
+
+    `result` is expected to contain the "Unschedule Tags" key. If you pass the raw
+    A2A envelope instead, call `extract_result()` first.
+    Returns "" when there are no tags.
+    """
+    tags_src = (result or {}).get("Unschedule Tags") or []
+    if not tags_src:
+        return ""
+
+    tags = _map_tags(tags_src)
+
+    # allow_nan=False guarantees no NaN/Inf can leak into the JS (would break JSON.parse).
+    tags_json = json.dumps(tags, allow_nan=False, ensure_ascii=False)
+
+    template = _load_template(template_path)
+    html_data = template.replace(TAGS_TOKEN, tags_json)
+
+    encoded = html.escape(html_data, quote=True)
+    iframe = f"<iframe width='100%' height='800' srcdoc=\"{encoded}\"></iframe>"
+    return iframe.replace("\r\n", "")
+
+
+def extract_result(payload: dict) -> dict:
+    """Optional helper: pull the inner 3-key object out of the A2A envelope
+    (result.artifacts[0].parts[0].text is a stringified JSON), tolerating NaN."""
+    import re
+    text = payload["result"]["artifacts"][0]["parts"][0]["text"]
+    return json.loads(re.sub(r"\bNaN\b", "null", text))
+
+
+if __name__ == "__main__":
+    # Quick self-test against a raw envelope file, e.g. result.txt
+    import sys
+    src = sys.argv[1] if len(sys.argv) > 1 else "result.txt"
+    envelope = json.loads(Path(src).read_text(encoding="utf-8"))
+    data = extract_result(envelope)
+    out = convert_to_table(data)
+    print(f"HTML length: {len(out)} chars  |  tags: {len(data.get('Unschedule Tags', []))}")
