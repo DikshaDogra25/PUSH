@@ -1,11 +1,19 @@
 """
-Amazon Schedule Planner — dynamic HTML builder (Python).
+Amazon Schedule Planner — dynamic HTML builder (pure Python, no C#).
 
-Injects your result tags into the dashboard and returns the <iframe srcdoc> HTML,
-mirroring the C# ConvertToTable pattern. Robust version: finds the
-`const ORIGINAL_TAGS_DB = ...;` line itself (works on the original Amazon.html —
-no manual token needed) and RAISES if it can't find it, instead of silently
-writing an unchanged file.
+Takes your already-deserialized result (the 3 keys: "Unschedule Tags",
+"Purchase Deals", "Location Agrregation & Allocation") and returns the final
+dashboard HTML with:
+  * the Unscheduled Tags seeding the engine (tables + downstream tabs), and
+  * the Location Aggregation & Allocation tab showing YOUR ProductA/ProductB
+    values (not the engine's tag-derived numbers).
+
+Adapted to Amazon_new.html's richer tag schema
+(id, schedule_num, tag_code, source, sink, por, pod, cpse, location, _curve, ...).
+
+Two entry points:
+  build_dashboard_html(result, template_path) -> raw HTML   (open/save as .html)
+  convert_to_table(result, template_path)     -> <iframe srcdoc> string (embed)
 """
 
 from __future__ import annotations
@@ -19,16 +27,121 @@ from pathlib import Path
 from typing import Any
 
 _MW_KEYS = [f"MW{i}" for i in range(1, 25)]          # MW19 absent -> 0; MW25 ignored
-_TAGS_ASSIGN = re.compile(r"const\s+ORIGINAL_TAGS_DB\s*=\s*[^;]*;")
 
-# Anchors for the Location Aggregation & Allocation override injection.
-_ENGINE_DEF = re.compile(r"function\s+runAllocationEngine\s*\(\s*\)\s*\{")
-_LOC_ASSIGN = re.compile(r"STATE\.locations\s*=\s*sortedLocations\s*;")
-_ALLOC_KEYS = ("Location Agrregation & Allocation",   # exact key in the result
-               "Location Aggregation & Allocation")   # correctly-spelled fallback
+# --- injection anchors (all present in Amazon_new.html) ---
+_TAGS_ASSIGN = re.compile(r"const\s+ORIGINAL_TAGS_DB\s*=\s*[^;]*;", re.S)
+_ENGINE_DEF  = re.compile(r"function\s+runAllocationEngine\s*\(\s*\)\s*\{")
+_LOC_ASSIGN  = re.compile(r"STATE\.locations\s*=\s*sortedLocations\s*;")
+_ALLOC_KEYS  = ("Location Agrregation & Allocation",   # exact key in the result
+                "Location Aggregation & Allocation")   # correctly-spelled fallback
 
-# JS injected once, before runAllocationEngine. Reads the result's ProductA/ProductB
-# per CP and overwrites each matching location's profiles. __ALLOC_JSON__ is filled in.
+
+# --------------------------------------------------------------------------- #
+#  NaN handling  (fixes: NaN in dict, re.sub-on-dict TypeError)
+# --------------------------------------------------------------------------- #
+def replace_nan(obj: Any, fill: Any = 0) -> Any:
+    """Recursively replace NaN / Infinity with `fill` in a nested dict/list.
+    Leaves str, int, bool, None untouched; handles numpy floats too."""
+    if isinstance(obj, dict):
+        return {k: replace_nan(v, fill) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [replace_nan(v, fill) for v in obj]
+    if isinstance(obj, (str, bool, int)) or obj is None:
+        return obj
+    try:
+        if math.isnan(obj) or math.isinf(obj):
+            return fill
+    except (TypeError, ValueError):
+        pass
+    return obj
+
+
+def extract_result(payload) -> dict:
+    """Return the inner 3-key object. Accepts the A2A envelope, a raw JSON string,
+    or an already-parsed dict. json.loads handles NaN natively; no re.sub on dicts."""
+    if isinstance(payload, (bytes, bytearray)):
+        payload = payload.decode("utf-8")
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    try:
+        text = payload["result"]["artifacts"][0]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError):
+        return payload                       # already the inner object
+    if isinstance(text, (bytes, bytearray)):
+        text = text.decode("utf-8")
+    if isinstance(text, str):
+        text = json.loads(text)
+    return text
+
+
+def _safe_mw(v: Any) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 0.0
+    v = float(v)
+    return 0.0 if (math.isnan(v) or math.isinf(v)) else v
+
+
+# --------------------------------------------------------------------------- #
+#  Tag mapping: JSON "Unschedule Tags" -> Amazon_new.html tag objects
+# --------------------------------------------------------------------------- #
+def _s(v: Any) -> str:
+    return v.strip() if isinstance(v, str) else ("" if v is None else str(v))
+
+
+def _fmt_ts(raw: Any) -> str:
+    if not raw or not isinstance(raw, str):
+        return ""
+    try:
+        return datetime.fromisoformat(raw.strip()).strftime("%Y-%m-%d %H:%M")
+    except ValueError:
+        return raw.strip()
+
+
+def _por_pod(market_path: Any):
+    parts = [p.strip() for p in _s(market_path).split(",") if p.strip()]
+    if not parts:
+        return "", ""
+    return parts[0], parts[-1]
+
+
+def _map_tags(unschedule_tags) -> list[dict]:
+    seen: dict[str, int] = {}
+    out: list[dict] = []
+    for t in unschedule_tags:
+        code = _s(t.get("TagCode")) or f"TAG-{t.get('TagIndex', '')}"
+        # de-duplicate id (two market-path legs can share a TagCode)
+        if code in seen:
+            seen[code] += 1
+            uid = f"{code}#{seen[code]}"
+        else:
+            seen[code] = 1
+            uid = code
+        por, pod = _por_pod(t.get("MarketPath"))
+        mw = max((_safe_mw(t.get(k)) for k in _MW_KEYS), default=0.0)
+        out.append({
+            "id": uid,
+            "schedule_num": f"P-{t.get('TagIndex', '')}",
+            "tag_code": _s(t.get("TagCode")),
+            "source": _s(t.get("GCA")),          # control area (RTO-ish)
+            "sink": _s(t.get("Sink")),
+            "por": por,
+            "pod": pod,
+            "cpse": _s(t.get("CPSE")),
+            "location": _s(t.get("Source")),     # CP the allocation keys on
+            "_curve": "baseload",                # payload has no curve -> flat
+            "shape": "baseload",
+            "mw": round(mw, 1),
+            "start": _fmt_ts(t.get("StartTime")),
+            "end": _fmt_ts(t.get("StopTime")),
+            "status": "Unscheduled",
+            "product": _s(t.get("product")),
+        })
+    return out
+
+
+# --------------------------------------------------------------------------- #
+#  Location Aggregation & Allocation override (ProductA/ProductB from result)
+# --------------------------------------------------------------------------- #
 _OVERRIDE_JS = r"""
 const RESULT_ALLOCATION = __ALLOC_JSON__;
 function __resAllocToArr(series) {
@@ -50,7 +163,7 @@ function applyResultAllocationOverride() {
   });
   STATE.locations.forEach(function (loc) {
     const cp = byCP[loc.name];
-    if (!cp) return;                       // CP not in result -> leave engine values
+    if (!cp) return;                       // CP not in result -> keep engine values
     const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
     loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
     loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
@@ -72,89 +185,6 @@ function applyResultAllocationOverride() {
 """
 
 
-# --------------------------------------------------------------------------- #
-#  NaN handling
-# --------------------------------------------------------------------------- #
-def replace_nan(obj: Any, fill: Any = 0) -> Any:
-    """Recursively replace NaN / Infinity with `fill` in a nested dict/list.
-    Leaves str, int, bool, None untouched; handles numpy floats too."""
-    if isinstance(obj, dict):
-        return {k: replace_nan(v, fill) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [replace_nan(v, fill) for v in obj]
-    if isinstance(obj, (str, bool, int)) or obj is None:
-        return obj
-    try:
-        if math.isnan(obj) or math.isinf(obj):
-            return fill
-    except (TypeError, ValueError):
-        pass
-    return obj
-
-
-def _safe_mw(v: Any) -> float:
-    if isinstance(v, bool) or not isinstance(v, (int, float)):
-        return 0.0
-    v = float(v)
-    return 0.0 if (math.isnan(v) or math.isinf(v)) else v
-
-
-# --------------------------------------------------------------------------- #
-#  Tag mapping: JSON "Unschedule Tags" -> engine tag objects
-# --------------------------------------------------------------------------- #
-def _s(v: Any) -> str:
-    return v.strip() if isinstance(v, str) else ("" if v is None else str(v))
-
-
-def _fmt_ts(raw: Any) -> str:
-    if not raw or not isinstance(raw, str):
-        return ""
-    try:
-        return datetime.fromisoformat(raw.strip()).strftime("%Y-%m-%d %H:%M")
-    except ValueError:
-        return raw.strip()
-
-
-def _map_tags(unschedule_tags) -> list[dict]:
-    seen: dict[str, int] = {}
-    out: list[dict] = []
-    for t in unschedule_tags:
-        code = _s(t.get("TagCode")) or f"TAG-{t.get('TagIndex', '')}"
-        if code in seen:
-            seen[code] += 1
-            code = f"{code}#{seen[code]}"
-        else:
-            seen[code] = 1
-        mw = max((_safe_mw(t.get(k)) for k in _MW_KEYS), default=0.0)
-        out.append({
-            "id": code,
-            "location": _s(t.get("Source")),
-            "shape": "flat",
-            "mw": round(mw, 1),
-            "sink": _s(t.get("Sink")),
-            "start": _fmt_ts(t.get("StartTime")),
-            "end": _fmt_ts(t.get("StopTime")),
-            "status": "Unscheduled",
-            "product": _s(t.get("product")),
-        })
-    return out
-
-
-# --------------------------------------------------------------------------- #
-#  Injection + HTML build
-# --------------------------------------------------------------------------- #
-def _inject_tags(template: str, tags_json: str) -> str:
-    # lambda replacement so backslashes in tags_json are inserted literally
-    new, n = _TAGS_ASSIGN.subn(lambda m: f"const ORIGINAL_TAGS_DB = {tags_json};",
-                               template, count=1)
-    if n == 0:
-        raise ValueError(
-            "Could not find 'const ORIGINAL_TAGS_DB = ...;' in the template. "
-            "Make sure template_path points to the Amazon dashboard HTML."
-        )
-    return new
-
-
 def _get_allocation(result: dict):
     for k in _ALLOC_KEYS:
         v = (result or {}).get(k)
@@ -163,21 +193,23 @@ def _get_allocation(result: dict):
     return None
 
 
+def _inject_tags(template: str, tags_json: str) -> str:
+    new, n = _TAGS_ASSIGN.subn(lambda m: f"const ORIGINAL_TAGS_DB = {tags_json};",
+                               template, count=1)
+    if n == 0:
+        raise ValueError("Could not find 'const ORIGINAL_TAGS_DB = ...;' in the template. "
+                         "Check that template_path points to the Amazon dashboard HTML.")
+    return new
+
+
 def _inject_allocation(template: str, allocation) -> str:
-    """Inject the ProductA/ProductB override so the Location Aggregation & Allocation
-    tab renders the result's values. No-op if there's no allocation in the result."""
     if not allocation:
         return template
-    alloc_json = json.dumps(allocation, allow_nan=False, ensure_ascii=False)
-    block = _OVERRIDE_JS.replace("__ALLOC_JSON__", alloc_json)
-
-    # 1. define data + override function just before the engine
-    template, n1 = _ENGINE_DEF.subn(lambda m: block + "\n  " + m.group(0),
-                                    template, count=1)
+    block = _OVERRIDE_JS.replace(
+        "__ALLOC_JSON__", json.dumps(allocation, allow_nan=False, ensure_ascii=False))
+    template, n1 = _ENGINE_DEF.subn(lambda m: block + "\n  " + m.group(0), template, count=1)
     if n1 == 0:
         raise ValueError("Could not find runAllocationEngine() to attach the allocation override.")
-
-    # 2. call it right after STATE.locations is set (before profiles are consumed downstream)
     template, n2 = _LOC_ASSIGN.subn(lambda m: m.group(0) + "\n    applyResultAllocationOverride();",
                                     template, count=1)
     if n2 == 0:
@@ -185,34 +217,38 @@ def _inject_allocation(template: str, allocation) -> str:
     return template
 
 
+# --------------------------------------------------------------------------- #
+#  Public API
+# --------------------------------------------------------------------------- #
 def build_dashboard_html(result: dict, template_path: str | Path) -> str:
-    """Return the RAW dashboard HTML with your tags injected.
-    Open this directly in a browser / write it to a .html file."""
+    """Return the RAW dashboard HTML with your tags + your Location A/B injected.
+    Open this directly in a browser or write it to a .html file."""
     tags_src = (result or {}).get("Unschedule Tags") or []
     if not tags_src:
         return ""
     tags_json = json.dumps(_map_tags(tags_src), allow_nan=False, ensure_ascii=False)
     template = Path(template_path).read_text(encoding="utf-8")
     template = _inject_tags(template, tags_json)
-    template = _inject_allocation(template, _get_allocation(result))   # Location A/B from result
+    template = _inject_allocation(template, _get_allocation(result))
     return template
 
 
 def convert_to_table(result: dict, template_path: str | Path) -> str:
-    """Return the <iframe srcdoc> HTML string (like the C# ConvertToTable).
-    Use this when embedding the result into another page."""
+    """Return the <iframe srcdoc> HTML string (embed into another page as MARKUP,
+    e.g. innerHTML / dangerouslySetInnerHTML — never write it out as plain text)."""
     raw = build_dashboard_html(result, template_path)
     if not raw:
         return ""
-    encoded = html.escape(raw, quote=True)                         # WebUtility.HtmlEncode
+    encoded = html.escape(raw, quote=True)
     iframe = f"<iframe width='100%' height='800' srcdoc=\"{encoded}\"></iframe>"
     return iframe.replace("\r\n", "")
 
 
 if __name__ == "__main__":
     import sys
-    # usage: python amazon_html.py <finalresult.json> <Amazon.html> <out.html>
-    result = replace_nan(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")), 0)
-    raw = build_dashboard_html(result, sys.argv[2])                # raw = renders when opened
-    Path(sys.argv[3]).write_text(raw, encoding="utf-8")
-    print(f"wrote {sys.argv[3]} ({len(raw)} chars)")
+    # usage: python amazon_html.py <result.json | envelope.json> <Amazon_new.html> <out.html>
+    raw_in = Path(sys.argv[1]).read_text(encoding="utf-8")
+    result = replace_nan(extract_result(raw_in), 0)
+    out = build_dashboard_html(result, sys.argv[2])
+    Path(sys.argv[3]).write_text(out, encoding="utf-8")
+    print(f"wrote {sys.argv[3]} ({len(out)} chars)")
