@@ -1,18 +1,54 @@
-// htmlData = the full dashboard HTML string you already build
-// (the raw <html>…</html>, NOT HtmlEncoded — you only encode for srcdoc, not for a file)
+/* Scrollbars */
+    * {
+      scrollbar-width: thin;                                  /* Firefox */
+      scrollbar-color: #b8bcc4 rgba(255,255,255,0.05);        /* thumb, track (Firefox) */
+    }
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.05);
+      border-radius: 99px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #b8bcc4;                                     /* light grey */
+      border-radius: 99px;
+      border: 2px solid rgba(0,0,0,0.15);                     /* padding so it reads as a pill */
+      background-clip: padding-box;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #d5d8de;                                    /* lighter on hover */
+    }
+    ::-webkit-scrollbar-corner {
+      background: rgba(255,255,255,0.05);
+    }
 
-// 1. Write to the IIS web root, under a folder IIS serves
-string webRoot   = @"C:\inetpub\wwwroot\dealschedule";
-Directory.CreateDirectory(webRoot);                       // no-op if it exists
 
-// 2. Unique filename so concurrent requests don't overwrite each other
-string fileName  = $"Amazon_Deal_Schedule_Planner_{Guid.NewGuid():N}.html";
-string filePath  = Path.Combine(webRoot, fileName);
 
-File.WriteAllText(filePath, htmlData, new UTF8Encoding(false));   // false = no BOM
 
-// 3. Return the URL that maps to that physical path (not the disk path)
-string fileUrl = $"https://i-dikshad.dev.oati.local/dealschedule/{fileName}";
 
-<iframe src="https://i-dikshad.dev.oati.local/dealschedule/Amazon_Deal_Schedule_Planner_xxxx.html"
-        width="100%" height="800"></iframe>
+line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: auto;          /* allow horizontal scroll instead of clipping */
+      overflow-y: auto;
+      padding: 12px;             /* less padding so more room in a small window */
+      display: flex;
+      justify-content: center;
+    }
+
+
+
+/* Responsiveness for small / embedded chat windows */
+    @media (max-width: 900px) {
+      body { padding: 8px; }
+      .dashboard-container { gap: 12px; }
+      .kpi-strip, .ids { grid-template-columns: 1fr !important; }   /* stack KPI tiles */
+      .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+    }
+    /* Wide inner tables/grids: let them scroll horizontally rather than overflow the frame */
+    .table-container, .tabs-navigation { overflow-x: auto; }
