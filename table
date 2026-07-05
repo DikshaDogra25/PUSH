@@ -12,6 +12,7 @@ And remove the list's bottom padding gap — before (line 1851):
 Before (line 1837):
 <div class="overview-grid" style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; align-items: start;">
 
+<div style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; align-items: start;">
 Then add this rule to the <style> block (put it right after the .dashboard-container { … } block near the top, alongside the other media query if you added it earlier):
 
 /* Overview row stacks on narrow / embedded windows */
