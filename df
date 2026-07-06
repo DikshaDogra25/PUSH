@@ -1,19 +1,33 @@
-<td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${loc.totalMW.toFixed(1)}</td>
-<td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${(loc.allocA + loc.allocB).toFixed(1)}</td>
-
-"card-loc-buckets": "visual",
-"card-loc-buckets": "tabular",
-
-<div id="card-loc-buckets-visual" class="horiz-rules-list">
-<div id="card-loc-buckets-visual" class="horiz-rules-list" style="display:none;">
-
-<div id="card-loc-buckets-tabular" class="table-container" style="display:none;">
-<div id="card-loc-buckets-tabular" class="table-container" style="display:block;">
-
-<button class="btn-action" onclick="toggleCardFlip('card-loc-buckets')" title="Show Tabular">
-  <svg ... data-lucide="table" ...>...</svg>
-</button>
-
-<button class="btn-action" onclick="toggleCardFlip('card-loc-buckets')" title="Show Visual">
-  <i data-lucide="image" style="width:13px; height:13px;"></i>
-</button>
+function applyResultAllocationOverride() {
+  if (typeof RESULT_ALLOCATION === "undefined" || !RESULT_ALLOCATION) return;
+  const byCP = {};
+  (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
+  });
+  (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
+  });
+  STATE.locations.forEach(function (loc) {
+    const cp = byCP[loc.name];
+    if (!cp) return;
+    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
+    // Show the result's A/B split VERBATIM (already allocated by your rule engine)
+    loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileTotal = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+    // Table columns = per-hour AVERAGE over HE1-24
+    loc.allocA = Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+    loc.allocB = Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+    loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+  });
+  STATE.hourlyProfileA = Array(24).fill(0);
+  STATE.hourlyProfileB = Array(24).fill(0);
+  STATE.locations.forEach(function (loc) {
+    if (!loc.profileA) return;
+    for (let h = 0; h < 24; h++) { STATE.hourlyProfileA[h] += loc.profileA[h]; STATE.hourlyProfileB[h] += loc.profileB[h]; }
+  });
+  for (let h = 0; h < 24; h++) {
+    STATE.hourlyProfileA[h] = Math.round(STATE.hourlyProfileA[h] * 10) / 10;
+    STATE.hourlyProfileB[h] = Math.round(STATE.hourlyProfileB[h] * 10) / 10;
+  }
+}
