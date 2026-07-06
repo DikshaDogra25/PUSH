@@ -1,67 +1,19 @@
-_OVERRIDE_JS = r"""
-const RESULT_ALLOCATION = __ALLOC_JSON__;
-function __resAllocToArr(series) {
-  const a = Array(24).fill(0);
-  ((series && series.data) || []).forEach(function (d) {
-    const i = (d.HE | 0) - 1;
-    if (i >= 0 && i < 24) a[i] = Number(d.values) || 0;
-  });
-  return a;
-}
-function applyResultAllocationOverride() {
-  if (typeof RESULT_ALLOCATION === "undefined" || !RESULT_ALLOCATION) return;
-  const byCP = {};
-  (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
-    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
-  });
-  (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
-    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
-  });
-  // 1. per-hour TOTAL supply from the result (A + B)
-  STATE.locations.forEach(function (loc) {
-    const cp = byCP[loc.name];
-    if (!cp) return;
-    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
-    loc.profileTotal = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
-    loc.profileA = Array(24).fill(0);
-    loc.profileB = Array(24).fill(0);
-    loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
-  });
-  // 2. global 150/hour cap: fill Product A up to limitA, overflow to Product B
-  for (let h = 0; h < 24; h++) {
-    let remainingCapA = STATE.limitA;
-    STATE.locations.forEach(function (loc) {
-      if (!loc.profileTotal) return;
-      const val = loc.profileTotal[h] || 0;
-      if (remainingCapA > 0) {
-        const a = Math.min(val, remainingCapA);
-        loc.profileA[h] = Math.round(a * 10) / 10;
-        loc.profileB[h] = Math.round((val - a) * 10) / 10;
-        remainingCapA = Math.max(0, remainingCapA - a);
-      } else {
-        loc.profileA[h] = 0;
-        loc.profileB[h] = Math.round(val * 10) / 10;
-      }
-    });
-  }
-  // 3. allocA / allocB as per-hour AVERAGES (aggregate)
-  STATE.locations.forEach(function (loc) {
-    if (!loc.profileA) return;
-    const sumA = loc.profileA.reduce(function (s, v) { return s + v; }, 0);
-    const sumB = loc.profileB.reduce(function (s, v) { return s + v; }, 0);
-    loc.allocA = Math.round((sumA / 24) * 10) / 10;
-    loc.allocB = Math.round((sumB / 24) * 10) / 10;
-  });
-  // 4. aggregate hourly profiles
-  STATE.hourlyProfileA = Array(24).fill(0);
-  STATE.hourlyProfileB = Array(24).fill(0);
-  STATE.locations.forEach(function (loc) {
-    if (!loc.profileA) return;
-    for (let h = 0; h < 24; h++) { STATE.hourlyProfileA[h] += loc.profileA[h]; STATE.hourlyProfileB[h] += loc.profileB[h]; }
-  });
-  for (let h = 0; h < 24; h++) {
-    STATE.hourlyProfileA[h] = Math.round(STATE.hourlyProfileA[h] * 10) / 10;
-    STATE.hourlyProfileB[h] = Math.round(STATE.hourlyProfileB[h] * 10) / 10;
-  }
-}
-"""
+<td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${loc.totalMW.toFixed(1)}</td>
+<td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${(loc.allocA + loc.allocB).toFixed(1)}</td>
+
+"card-loc-buckets": "visual",
+"card-loc-buckets": "tabular",
+
+<div id="card-loc-buckets-visual" class="horiz-rules-list">
+<div id="card-loc-buckets-visual" class="horiz-rules-list" style="display:none;">
+
+<div id="card-loc-buckets-tabular" class="table-container" style="display:none;">
+<div id="card-loc-buckets-tabular" class="table-container" style="display:block;">
+
+<button class="btn-action" onclick="toggleCardFlip('card-loc-buckets')" title="Show Tabular">
+  <svg ... data-lucide="table" ...>...</svg>
+</button>
+
+<button class="btn-action" onclick="toggleCardFlip('card-loc-buckets')" title="Show Visual">
+  <i data-lucide="image" style="width:13px; height:13px;"></i>
+</button>
