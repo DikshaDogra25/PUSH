@@ -1,23 +1,50 @@
+select Tag = 'Tag',
+       TagCode,
+       T.TagIndex,
+       GCA, LCA, CPSE,
+       StartTime, StopTime,
+       MarketPath,
+       Source = POR_Name,
+       Sink   = POD_Name,
+       TP,
+       Owner  = TransCustCode,
+       OASIS  = STRING_AGG(CONVERT(varchar(50), ContractNumber), ', ')
+                  WITHIN GROUP (ORDER BY ContractNumber),
+       PseComment  = LTRIM(RTRIM(REPLACE(T.PseComment,'&nbsp;',' '))),
+       ProfileDate = convert(char(10), Date, 101),
+       MW1,  MW2,  MW3,  MW4,  MW5,
+       MW6,  MW7,  MW8,  MW9,  MW10,
+       MW11, MW12, MW13, MW14, MW15,
+       MW16, MW17, MW18, MW20,
+       MW21, MW22, MW23, MW24, MW25
+from #TempTag T
+inner join #TagProfile P on T.TagIndex = P.TagIndex
+group by
+       TagCode,
+       T.TagIndex,
+       GCA, LCA, CPSE,
+       StartTime, StopTime,
+       MarketPath,
+       POR_Name,
+       POD_Name,
+       TP,
+       TransCustCode,
+       LTRIM(RTRIM(REPLACE(T.PseComment,'&nbsp;',' '))),
+       convert(char(10), Date, 101),
+       MW1,  MW2,  MW3,  MW4,  MW5,
+       MW6,  MW7,  MW8,  MW9,  MW10,
+       MW11, MW12, MW13, MW14, MW15,
+       MW16, MW17, MW18, MW20,
+       MW21, MW22, MW23, MW24, MW25
+order by TagCode;
 
-Before (around line 3588):
-<div style="display:flex; flex-direction:column; gap:6px; width:100%; min-width:440px; padding:4px 0;">
-        <!-- E-Tag -->
 
-Before (line 1840):
-<div class="dashboard-card" style="height: auto; max-height: 520px; min-height: 220px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0;">
 
-And remove the list's bottom padding gap — before (line 1851):
-<div id="overview-loc-list" class="horiz-rules-list" style="overflow-y: auto; flex: 1 1 auto; padding-bottom: 4px; display: flex; flex-direction: column; gap: 4px;">
 
-Before (line 1837):
-<div class="overview-grid" style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; align-items: start;">
-
-<div style="display: grid; grid-template-columns: 280px 1fr 280px; gap: 20px; align-items: start;">
-Then add this rule to the <style> block (put it right after the .dashboard-container { … } block near the top, alongside the other media query if you added it earlier):
-
-/* Overview row stacks on narrow / embedded windows */
-    @media (max-width: 820px) {
-      .overview-grid {
-        grid-template-columns: 1fr !important;   /* stack the three columns */
-      }
-    }
+OASIS = STUFF((
+          select ', ' + CONVERT(varchar(50), p2.ContractNumber)
+          from #TagProfile p2
+          where p2.TagIndex = T.TagIndex
+          order by p2.ContractNumber
+          for xml path(''), type
+        ).value('.', 'varchar(max)'), 1, 2, ''),
