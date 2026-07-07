@@ -1,57 +1,12 @@
-/* Detail Table and Scrollbar styling */
-    .table-container {
-      max-height: 220px;
-      overflow-y: auto;
-      margin-bottom: 12px;
-    }
-    /* Blended Custom Scrollbar */
-    .table-container::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
-    }
-    .table-container::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 99px;
-    }
-    .table-container::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 99px;
-    }
-    .table-container::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-
-
-
-
-/* Detail Table and Scrollbar styling */
-    .table-container {
-      max-height: 220px;
-      overflow-y: auto;      /* vertical scrollbar */
-      overflow-x: auto;      /* horizontal scrollbar */
-      margin-bottom: 12px;
-      scrollbar-width: thin;                              /* Firefox */
-      scrollbar-color: #b8bcc4 rgba(255, 255, 255, 0.06); /* thumb, track (Firefox) */
-    }
-    /* Visible light-grey scrollbars (Chrome/Edge/Safari) */
-    .table-container::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-    .table-container::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 99px;
-    }
-    .table-container::-webkit-scrollbar-thumb {
-      background: #b8bcc4;
-      border-radius: 99px;
-      border: 2px solid rgba(0, 0, 0, 0.2);
-      background-clip: padding-box;
-    }
-    .table-container::-webkit-scrollbar-thumb:hover {
-      background: #d5d8de;
-    }
-    .table-container::-webkit-scrollbar-corner {
-      background: rgba(255, 255, 255, 0.06);
-    }
+// Derive trade date from the data's ProfileDate ("MM/DD/YYYY") instead of hardcoding
+function getTradeDateFromData() {
+  var d = (STATE.tags && STATE.tags[0] && STATE.tags[0].profileDate)
+        || (RESULT_ALLOCATION && RESULT_ALLOCATION.profileDate) || null;
+  if (!d) return null;
+  var p = d.split("/");                     // "06/04/2026" -> ["06","04","2026"]
+  if (p.length === 3) return p[2] + "-" + p[0] + "-" + p[1];  // -> "2026-06-04"
+  return d;
+}
+// then set the element:
+var td = getTradeDateFromData();
+if (td) document.getElementById("trade-date-value").innerText = td;
