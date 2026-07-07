@@ -1,3 +1,16 @@
+let uncommittedVol = 0;
+      locations.forEach(loc => {
+        const lState = getLocState(loc.name);
+        if (lState !== 'Committed') {
+          uncommittedVol += loc.totalMW;
+        }
+      });
+
+// Match the main dashboard exactly: sum of non-committed tag MW (peaks)
+      const uncommittedVol = STATE.tags
+        .filter(t => t.status !== "Committed")
+        .reduce((sum, t) => sum + (t.mw || 0), 0);
+
 loc.allocA = Math.round((sumA / 24) * 10) / 10;
         loc.allocB = Math.round((sumB / 24) * 10) / 10;
         if (loc.allocA + loc.allocB !== loc.totalMW) {
