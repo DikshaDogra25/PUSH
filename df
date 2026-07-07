@@ -10,3 +10,5 @@ function getTradeDateFromData() {
 // then set the element:
 var td = getTradeDateFromData();
 if (td) document.getElementById("trade-date-value").innerText = td;
+
+[...document.querySelectorAll('*')].filter(e => /TRADE DATE|2026-06-21|Yesterday/.test(e.textContent) && e.children.length < 3)
