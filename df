@@ -1,9 +1,30 @@
-function getFilteredOverviewLocations() {
-    const searchInput = document.getElementById("overview-loc-search");
-    const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
-    // Restrict Overview sources to RESULT_ALLOCATION CPs (fallback: all)
-    const __allocCPs = getAllocationCPs();
-    const __base = __allocCPs.size ? STATE.locations.filter(loc => __allocCPs.has(loc.name)) : STATE.locations;
-    return __base.filter(loc => {
-      const matchesQuery = loc.name.toLowerCase().includes(query);
-      ...
+// Location tab
+const allocLocs = __allocCPs.size ? STATE.locations.filter(l => __allocCPs.has(l.name)) : STATE.locations;
+// →
+const allocLocs = __allocCPs.size ? sortByAllocationOrder(STATE.locations.filter(l => __allocCPs.has(l.name))) : STATE.locations;
+
+// Overview
+const __base = __allocCPs.size ? STATE.locations.filter(loc => __allocCPs.has(loc.name)) : STATE.locations;
+// →
+const __base = __allocCPs.size ? sortByAllocationOrder(STATE.locations.filter(loc => __allocCPs.has(loc.name))) : STATE.locations;
+
+
+const totalA = Math.round(sortedLocations.reduce((sum, l) => sum + l.allocA, 0) * 10) / 10;
+const totalB = Math.round(sortedLocations.reduce((sum, l) => sum + l.allocB, 0) * 10) / 10;
+// →
+
+function __sumProductList(list) {
+  return Math.round((list || []).reduce(function (sum, x) {
+    const arr = __resAllocToArr(x);
+    return sum + arr.reduce(function (a, b) { return a + b; }, 0) / 24;
+  }, 0) * 10) / 10;
+}
+const __hasRA = (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION);
+const totalA = __hasRA ? __sumProductList(RESULT_ALLOCATION.ProductA)
+                       : Math.round(sortedLocations.reduce((sum, l) => sum + l.allocA, 0) * 10) / 10;
+const totalB = __hasRA ? __sumProductList(RESULT_ALLOCATION.ProductB)
+                       : Math.round(sortedLocations.reduce((sum, l) => sum + l.allocB, 0) * 10) / 10;
+Against your data: Product A = 150.0 (still ≤ 150 — the All ProductA row is zeros, so it doesn't push A over the cap), Product B = 49.8 (now includes the All ProductB values). It falls back to the old location-based sum only if RESULT_ALLOCATION is missing.
+One honest heads-up so the number doesn't surprise you: because All is included, Product B went from 26.3 to 49.8 — it's now counting the individual CPs and the All row. If All in your data is meant to be the aggregate/total of the other CPs (rather than a separate source), including it double-counts Product B, and you'd want it excluded. If that's the case, tell me and I'll drop All from the sums (Product A stays 150, Product B returns to 26.3). Right now it does exactly what you asked — sums the full lists.
+Your context, results, and images stay strictly private — nothing is saved, retained, or shared with anyone, at any cost.Amzon 9 7Code · HTML 
+Claude is AI and can make mistakes. Please double-check responses.Amzon 9 7 · HTML
