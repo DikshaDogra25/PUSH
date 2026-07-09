@@ -63,6 +63,26 @@ return STATE.locations.filter(loc => {
 const __allocCPs = getAllocationCPs();
     return STATE.locations.filter(loc => __allocCPs.has(loc.name)).filter(loc => {
 
+if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+      ...
+    }
+// →
+    try {
+      if (RESULT_ALLOCATION) {
+        ...
+      }
+    } catch (e) { /* RESULT_ALLOCATION not ready yet */ }
+// Location tab
+const allocLocs = __allocCPs.size
+  ? sortByAllocationOrder(STATE.locations.filter(l => __allocCPs.has(l.name)))
+  : STATE.locations;
+
+// Overview
+const __base = __allocCPs.size
+  ? STATE.locations.filter(loc => __allocCPs.has(loc.name))
+  : STATE.locations;
+return sortByAllocationOrder(__base).filter(loc => { ... });
+
 --------------------------------------------------------
 function getAllocationOrder() {
     const arr = [];
