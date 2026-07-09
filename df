@@ -1,4 +1,40 @@
+// Append allocation-only sources (CPs in RESULT_ALLOCATION with no matching tag,
+  // e.g. "All") so Overview + Location tabs show them. Display-only: added AFTER all
+  // engine math, flagged isAggregate, so they never affect cap/audits/totals.
+  function appendAllocationOnlySources() {
+    if (typeof RESULT_ALLOCATION === "undefined" || !RESULT_ALLOCATION) return;
+    const existing = new Set(STATE.locations.map(function (l) { return l.name; }));
+    const byCP = {};
+    (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+      const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
+    });
+    (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+      const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
+    });
+    Object.keys(byCP).forEach(function (cp) {
+      if (!cp || existing.has(cp)) return;
+      const A = byCP[cp].A || Array(24).fill(0), B = byCP[cp].B || Array(24).fill(0);
+      const total = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+      STATE.locations.push({
+        name: cp, tags: [], isAggregate: true, status: "Draft",
+        profileA: A.map(function (v) { return Math.round(v * 10) / 10; }),
+        profileB: B.map(function (v) { return Math.round(v * 10) / 10; }),
+        profileTotal: total,
+        allocA: Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10,
+        allocB: Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10,
+        totalMW: Math.round(total.reduce(function (s, v) { return s + v; }, 0) * 10) / 10
+      });
+    });
+  }
 
-{
-  "python.defaultInterpreterPath": "D:\\__OATIPlatformGenie\\genie-platform\\.venv\\Scripts\\python.exe"
-}
+
+hasAuditFailure: hasAuditFailure
+    };
+  }
+
+hasAuditFailure: hasAuditFailure
+    };
+
+    // Show allocation-only sources (e.g. "All") in Overview/Location lists.
+    appendAllocationOnlySources();
+  }
