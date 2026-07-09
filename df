@@ -1,29 +1,33 @@
-// Set of source names defined in RESULT_ALLOCATION (ProductA/ProductB CPs, incl. "All").
-  function getAllocationCPs() {
-    const set = new Set();
+function getAllocationOrder() {
+    const arr = [];
     if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
-      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) { set.add((x.CP || "").trim()); });
-      (RESULT_ALLOCATION.ProductB || []).forEach(function (x) { set.add((x.CP || "").trim()); });
+      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+        const cp = (x.CP || "").trim(); if (cp && arr.indexOf(cp) === -1) arr.push(cp);
+      });
+      (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+        const cp = (x.CP || "").trim(); if (cp && arr.indexOf(cp) === -1) arr.push(cp);
+      });
     }
-    return set;
+    return arr;
+  }
+  function sortByAllocationOrder(locs) {
+    const order = getAllocationOrder();
+    return locs.slice().sort(function (a, b) {
+      const ia = order.indexOf(a.name), ib = order.indexOf(b.name);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
   }
 
+const allocLocs = STATE.locations.filter(l => __allocCPs.has(l.name));
+// →
+const allocLocs = sortByAllocationOrder(STATE.locations.filter(l => __allocCPs.has(l.name)));
 
-const lDraftCount = STATE.locations.filter(l => getLocationState(l.name) === 'Draft').length;
-    ...
-    const filteredLocations = locFilter === 'All'
-      ? STATE.locations
-      : STATE.locations.filter(loc => getLocationState(loc.name) === locFilter);
+return STATE.locations.filter(loc => __allocCPs.has(loc.name)).filter(loc => {
+// →
+return sortByAllocationOrder(STATE.locations.filter(loc => __allocCPs.has(loc.name))).filter(loc => {
 
-const __allocCPs = getAllocationCPs();
-    const allocLocs = STATE.locations.filter(l => __allocCPs.has(l.name));
-    const lDraftCount = allocLocs.filter(l => getLocationState(l.name) === 'Draft').length;
-    ...
-    const filteredLocations = locFilter === 'All'
-      ? allocLocs
-      : allocLocs.filter(loc => getLocationState(loc.name) === locFilter);
-
-return STATE.locations.filter(loc => {
-
-const __allocCPs = getAllocationCPs();
-    return STATE.locations.filter(loc => __allocCPs.has(loc.name)).filter(loc => {
+filteredLocations.forEach((loc) => {
+  const originalIndex = STATE.locations.findIndex(l => l.name === loc.name);
+// →
+filteredLocations.forEach((loc, index) => {
+  const originalIndex = index;
