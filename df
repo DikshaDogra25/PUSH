@@ -1,52 +1,9 @@
-(right before function renderLocationsTab()):
-// Source names defined in RESULT_ALLOCATION (ProductA/ProductB CPs, incl. 'All').
-  function getAllocationCPs() {
-    const set = new Set();
-    try {
-      if (RESULT_ALLOCATION) {
-        (RESULT_ALLOCATION.ProductA || []).forEach(function (x) { set.add((x.CP || "").trim()); });
-        (RESULT_ALLOCATION.ProductB || []).forEach(function (x) { set.add((x.CP || "").trim()); });
-      }
-    } catch (e) { /* not ready */ }
-    return set;
-  }
-
-const lDraftCount = STATE.locations.filter(l => getLocationState(l.name) === 'Draft').length;
-    const lAccCount = STATE.locations.filter(l => getLocationState(l.name) === 'Accepted').length;
-    const lRejCount = STATE.locations.filter(l => getLocationState(l.name) === 'Rejected').length;
-    const lCommCount = STATE.locations.filter(l => getLocationState(l.name) === 'Committed').length;
-    renderTabFilterPills('locations-filter-pills', 'locations', [
-      { key: 'All', label: 'All', count: STATE.locations.length },
-      { key: 'Draft', label: 'Draft', count: lDraftCount },
-      { key: 'Accepted', label: 'Accepted', count: lAccCount },
-      { key: 'Rejected', label: 'Rejected', count: lRejCount },
-      { key: 'Committed', label: 'Scheduled', count: lCommCount },
-    ]);
-
-    const locFilter = STATE.tabFilters.locations;
-    const filteredLocations = locFilter === 'All'
-      ? STATE.locations
-
-
-// Restrict to sources defined in RESULT_ALLOCATION ProductA/ProductB (fallback: all)
+function getFilteredOverviewLocations() {
+    const searchInput = document.getElementById("overview-loc-search");
+    const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    // Restrict Overview sources to RESULT_ALLOCATION CPs (fallback: all)
     const __allocCPs = getAllocationCPs();
-    const allocLocs = __allocCPs.size ? STATE.locations.filter(l => __allocCPs.has(l.name)) : STATE.locations;
-
-    const lDraftCount = allocLocs.filter(l => getLocationState(l.name) === 'Draft').length;
-    const lAccCount = allocLocs.filter(l => getLocationState(l.name) === 'Accepted').length;
-    const lRejCount = allocLocs.filter(l => getLocationState(l.name) === 'Rejected').length;
-    const lCommCount = allocLocs.filter(l => getLocationState(l.name) === 'Committed').length;
-    renderTabFilterPills('locations-filter-pills', 'locations', [
-      { key: 'All', label: 'All', count: allocLocs.length },
-      { key: 'Draft', label: 'Draft', count: lDraftCount },
-      { key: 'Accepted', label: 'Accepted', count: lAccCount },
-      { key: 'Rejected', label: 'Rejected', count: lRejCount },
-      { key: 'Committed', label: 'Scheduled', count: lCommCount },
-    ]);
-
-    const locFilter = STATE.tabFilters.locations;
-    const filteredLocations = locFilter === 'All'
-      ? allocLocs
-      : allocLocs.filter(loc => getLocationState(loc.name) === locFilter);
-      : STATE.locations.filter(loc => getLocationState(loc.name) === locFilter);
-
+    const __base = __allocCPs.size ? STATE.locations.filter(loc => __allocCPs.has(loc.name)) : STATE.locations;
+    return __base.filter(loc => {
+      const matchesQuery = loc.name.toLowerCase().includes(query);
+      ...
