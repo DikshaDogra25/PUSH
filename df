@@ -1,3 +1,69 @@
+// Append allocation-only sources (CPs in RESULT_ALLOCATION with no matching tag,
+  // e.g. "All") so Overview + Location tabs show them. Display-only: added AFTER all
+  // engine math, flagged isAggregate, so they never affect cap/audits/totals.
+  function appendAllocationOnlySources() {
+    if (typeof RESULT_ALLOCATION === "undefined" || !RESULT_ALLOCATION) return;
+    const existing = new Set(STATE.locations.map(function (l) { return l.name; }));
+    const byCP = {};
+    (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+      const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
+    });
+    (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+      const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
+    });
+    Object.keys(byCP).forEach(function (cp) {
+      if (!cp || existing.has(cp)) return;
+      const A = byCP[cp].A || Array(24).fill(0), B = byCP[cp].B || Array(24).fill(0);
+      const total = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+      STATE.locations.push({
+        name: cp, tags: [], isAggregate: true, status: "Draft",
+        profileA: A.map(function (v) { return Math.round(v * 10) / 10; }),
+        profileB: B.map(function (v) { return Math.round(v * 10) / 10; }),
+        profileTotal: total,
+        allocA: Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10,
+        allocB: Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10,
+        totalMW: Math.round(total.reduce(function (s, v) { return s + v; }, 0) * 10) / 10
+      });
+    });
+  }
+
+hasAuditFailure: hasAuditFailure
+    };
+
+    // Show allocation-only sources (e.g. "All") in Overview/Location lists.
+    appendAllocationOnlySources();
+  }
+---------------------------------------------------
+// Set of source names defined in RESULT_ALLOCATION (ProductA/ProductB CPs, incl. "All").
+  function getAllocationCPs() {
+    const set = new Set();
+    if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) { set.add((x.CP || "").trim()); });
+      (RESULT_ALLOCATION.ProductB || []).forEach(function (x) { set.add((x.CP || "").trim()); });
+    }
+    return set;
+  }
+
+const lDraftCount = STATE.locations.filter(l => getLocationState(l.name) === 'Draft').length;
+    ...
+    const filteredLocations = locFilter === 'All'
+      ? STATE.locations
+      : STATE.locations.filter(loc => getLocationState(loc.name) === locFilter);
+
+const __allocCPs = getAllocationCPs();
+    const allocLocs = STATE.locations.filter(l => __allocCPs.has(l.name));
+    const lDraftCount = allocLocs.filter(l => getLocationState(l.name) === 'Draft').length;
+    ...
+    const filteredLocations = locFilter === 'All'
+      ? allocLocs
+      : allocLocs.filter(loc => getLocationState(loc.name) === locFilter);
+
+return STATE.locations.filter(loc => {
+
+const __allocCPs = getAllocationCPs();
+    return STATE.locations.filter(loc => __allocCPs.has(loc.name)).filter(loc => {
+
+--------------------------------------------------------
 function getAllocationOrder() {
     const arr = [];
     if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
