@@ -12,7 +12,13 @@ const __base = __allocCPs.size ? sortByAllocationOrder(STATE.locations.filter(lo
 const totalA = Math.round(sortedLocations.reduce((sum, l) => sum + l.allocA, 0) * 10) / 10;
 const totalB = Math.round(sortedLocations.reduce((sum, l) => sum + l.allocB, 0) * 10) / 10;
 // →
-
+function sortByAllocationOrder(locs) {
+    const order = getAllocationOrder();
+    return locs.slice().sort(function (a, b) {
+      const ia = order.indexOf(a.name), ib = order.indexOf(b.name);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+  }
 function __sumProductList(list) {
   return Math.round((list || []).reduce(function (sum, x) {
     const arr = __resAllocToArr(x);
