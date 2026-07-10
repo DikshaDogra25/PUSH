@@ -1,12 +1,150 @@
-const totalA = STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw || 0;
-    const totalB = STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw || 0;
+import math, random, copy
 
-// Overview KPI card totals: sum allocation sources INCLUDING 'All' (sale deals untouched)
-    const __kpiCPs = getAllocationCPs();
-    const __kpiLocs = STATE.locations.filter(l => __kpiCPs.has(l.name));
-    const totalA = __kpiLocs.length
-      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocA || 0), 0) * 10) / 10
-      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw || 0);
-    const totalB = __kpiLocs.length
-      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocB || 0), 0) * 10) / 10
-      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw || 0);
+def _mw(d, he):
+    """MW value for hour he from a deal/tag dict; None/NaN/missing -> 0.0. Safe if d is None/[]/not a dict."""
+    if not isinstance(d, dict):
+        return 0.0
+    v = d.get(f"MW{he}")
+    try:
+        v = float(v)
+        return 0.0 if math.isnan(v) else v
+    except (TypeError, ValueError):
+        return 0.0
+
+def _clean(s):
+    return str(s).strip() if s is not None else ""
+
+def deal_schedule_plan(saledeals, purchasedeals, tagdata):
+    """
+    Build the Final Deal Schedule Plan.
+      - Per tag, per hour HE1..25 (None->0).
+      - PURCHASE: match deals by tag.PurchaseCounterPartyName == deal.CounterParty, in list order.
+        Fill each hour with min(remaining_need, deal.MW); shortfall carries to the NEXT matching
+        deal until met. A deal touched by a tag is CONSUMED (leftover discarded, not reused by
+        later tags).
+      - SALE: match the sale_deals entry whose key source (before ' | ') == tag.Source. Fill from
+        SDeal_A up to its MW, overflow to SDeal_B, per hour.
+      - Purchase volume negative, sale volume positive (balanced tag nets ~0). Shortfalls -> IMBALANCE.
+    Returns a list of per-tag groups, each with its purchase/sale rows for row-spanning.
+    """
+    HES = list(range(1, 26))
+    purchasedeals = purchasedeals or []
+    tagdata = tagdata or []
+
+    # Sale lookup keyed by source (left side of "Source | Product"); first occurrence wins.
+    sale_by_source = {}
+    for key, val in (saledeals or {}).items():
+        src = _clean(str(key).split("|")[0])
+        if src not in sale_by_source:
+            sale_by_source[src] = val
+
+    consumed = [False] * len(purchasedeals)   # global consumption across tags
+    plan = []
+
+    for tag in tagdata:
+        tag_code = _clean(tag.get("TagCode"))
+        tag_index = tag.get("TagIndex")
+        source = _clean(tag.get("Source"))
+        sink = _clean(tag.get("Sink"))
+        cp = _clean(tag.get("PurchaseCounterPartyName"))
+        need = [_mw(tag, he) for he in HES]
+
+        schedule_number = f"P-{random.randint(10000000, 99999999)}"
+        rows = []
+
+        # ---------- PURCHASE: consume matching-CP deals, carry shortfall ----------
+        remaining = need[:]
+        purchase_total = [0.0] * len(HES)
+        for i, pd in enumerate(purchasedeals):
+            if all(r <= 1e-9 for r in remaining):
+                break
+            if consumed[i] or _clean(pd.get("CounterParty")) != cp:
+                continue
+            alloc = [0.0] * len(HES)
+            used = False
+            for j, he in enumerate(HES):
+                take = min(remaining[j], _mw(pd, he))
+                if take > 0:
+                    alloc[j] = round(take, 4)
+                    remaining[j] = round(remaining[j] - take, 6)
+                    purchase_total[j] += take
+                    used = True
+            consumed[i] = True   # consumed once touched; leftover discarded
+            if used:
+                rows.append({
+                    "type": "PURCHASE",
+                    "deal_number": pd.get("DealNumber"),
+                    "counterparty": _clean(pd.get("CounterParty")),
+                    "product": _clean(pd.get("Product") or pd.get("DealType")),
+                    "mw": alloc,
+                    "volume": round(-sum(alloc), 4),   # purchase negative
+                })
+
+        # ---------- SALE: A first, overflow to B (match on source only) ----------
+        entry = sale_by_source.get(source)
+        sa = entry.get("SDeal_A") if isinstance(entry, dict) else None
+        sb = entry.get("SDeal_B") if isinstance(entry, dict) else None
+        sa = sa if isinstance(sa, dict) else None
+        sb = sb if isinstance(sb, dict) else None
+
+        saleA = [0.0] * len(HES)
+        saleB = [0.0] * len(HES)
+        sale_total = [0.0] * len(HES)
+        for j, he in enumerate(HES):
+            n = need[j]
+            a = min(n, _mw(sa, he))
+            a = a if a > 0 else 0.0
+            saleA[j] = round(a, 4)
+            b = min(n - a, _mw(sb, he))
+            b = b if b > 0 else 0.0
+            saleB[j] = round(b, 4)
+            sale_total[j] = a + b
+
+        if sa is not None:
+            rows.append({
+                "type": "SALE", "product": "Product A",
+                "deal_number": sa.get("DealNumber"),
+                "counterparty": _clean(sa.get("CounterParty")),
+                "mw": saleA, "volume": round(sum(saleA), 4),   # sale positive
+            })
+        if sb is not None:
+            rows.append({
+                "type": "SALE", "product": "Product B",
+                "deal_number": sb.get("DealNumber"),
+                "counterparty": _clean(sb.get("CounterParty")),
+                "mw": saleB, "volume": round(sum(saleB), 4),
+            })
+
+        # ---------- balance / status ----------
+        ptot = round(sum(purchase_total), 4)
+        stot = round(sum(sale_total), 4)
+        need_total = round(sum(need), 4)
+        balanced = abs(ptot - stot) < 0.01 and abs(ptot - need_total) < 0.01
+        # net across all rows should be ~0 when balanced
+        net = round(sum(r["volume"] for r in rows), 4)
+
+        plan.append({
+            "schedule_number": schedule_number,
+            "tag_code": tag_code,
+            "tag_index": tag_index,
+            "source": source,
+            "sink": sink,
+            "path": f"{source} \u2192 {sink}",
+            "status": "PLANNED" if balanced else "IMBALANCE",
+            "net_volume": net,
+            "rows": rows,
+        })
+
+    return plan
+
+
+// Final Deal Schedule Plan rows (built in Python by deal_schedule_plan()); pipeline replaces [].
+const FINAL_PLAN = [];
+1. Data injection (right after RESULT_ALLOCATION, before __resAllocToArr):
+
+Call site (first lines of renderSchedulesTab):
+renderFinalPlan();
+    if (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) {
+      const __b = document.getElementById("badge-schedules-count");
+      if (__b) __b.innerText = FINAL_PLAN.length;
+    }
