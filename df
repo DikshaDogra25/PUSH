@@ -196,3 +196,31 @@ STATE.schedules = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN ? FINAL_PLAN 
     rows: g.rows           // purchase/sale rows for the tabular view
   };
 });
+
+// ---- Build purchase/sale deals + balance stats from FINAL_PLAN (dynamic; no static data) ----
+    const __fp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
+    const __rows = [];
+    __fp.forEach(function (g) { (g.rows || []).forEach(function (r) { __rows.push({ g: g, r: r }); }); });
+    function __mwFields(mw) { const o = {}; (mw || []).forEach(function (v, h) { o['MW' + (h + 1)] = v; }); return o; }
+    STATE.purchaseDeals = __rows.filter(function (x) { return x.r.type === 'PURCHASE'; }).map(function (x, i) {
+      return Object.assign({ id: 'PUR-' + i, deal_num: x.r.deal_number, counterparty: x.r.counterparty,
+        product: x.r.product, location: x.g.source, tag_id: x.g.tag_index, tag_code: x.g.tag_code,
+        mw: Math.abs(x.r.volume || 0), status: 'Planned' }, __mwFields(x.r.mw));
+    });
+    STATE.saleDeals = __rows.filter(function (x) { return x.r.type === 'SALE'; }).map(function (x, i) {
+      return Object.assign({ id: 'SAL-' + i, deal_num: x.r.deal_number, counterparty: x.r.counterparty,
+        product: x.r.product, location: x.g.source, tag_id: x.g.tag_index, tag_code: x.g.tag_code,
+        mw: (x.r.volume || 0), status: 'Planned' }, __mwFields(x.r.mw));
+    });
+    const tagsMW = STATE.tags.reduce(function (sum, t) { return sum + (t.mw || 0); }, 0);
+    const purchMW = STATE.purchaseDeals.reduce(function (sum, pd) { return sum + (pd.mw || 0); }, 0);
+    const salesMW = STATE.saleDeals.reduce(function (sum, sd) { return sum + (sd.mw || 0); }, 0);
+    const uncommittedTagsMW = STATE.tags.filter(function (t) { return t.status !== "Committed"; }).reduce(function (sum, t) { return sum + (t.mw || 0); }, 0);
+    STATE.balanceStats = {
+      tags_mw: Math.round(tagsMW * 10) / 10,
+      uncommitted_tags_mw: Math.round(uncommittedTagsMW * 10) / 10,
+      purchases_mw: Math.round(purchMW * 10) / 10,
+      sales_mw: Math.round(salesMW * 10) / 10,
+      balanced: Math.abs(purchMW - salesMW) < 0.1,
+      hasAuditFailure: false
+    };
