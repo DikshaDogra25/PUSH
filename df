@@ -81,3 +81,10 @@ if b_entry is not None:
 
     pl = product_list or {}
     return index(pl.get("ProductA")), index(pl.get("ProductB"))
+
+
+import zlib
+...
+@staticmethod
+def _sale_deal_number(leg, source):
+    return int(zlib.crc32(f"SALE|{leg}|{source}".encode("utf-8")) % 9_000_000 + 1_000_000)
