@@ -1,108 +1,83 @@
-function renderFinalPlan() {
-    if (typeof FINAL_PLAN === "undefined" || !FINAL_PLAN) return;
-    const table = document.getElementById("schedules-tabular-grid");
-    const tbody = table ? table.querySelector("tbody") : null;
-    if (!tbody) return;
-    tbody.innerHTML = FINAL_PLAN.map(function (g) {
-      const span = g.rows.length || 1;
-      return g.rows.map(function (r, i) {
-        const tagCells = i === 0
-          ? `<td rowspan="${span}">${g.schedule_number}</td>
-             <td rowspan="${span}" style="color:var(--orange)">${g.tag_code}</td>
-             <td rowspan="${span}">${g.path}</td>` : "";
-        const badge = r.type === "PURCHASE"
-          ? `<span class="badge purchase">PURCHASE</span>`
-          : `<span class="badge sale">SALE</span>`;
-        const vol = `<span style="color:${r.volume < 0 ? 'var(--orange)' : 'var(--green)'}">${r.volume > 0 ? '+' : ''}${r.volume.toFixed(1)}</span>`;
-        const statusCell = i === 0
-          ? `<td rowspan="${span}">${g.status}</td>` : "";
-        return `<tr>${tagCells}<td>${badge}</td><td>${r.deal_number}</td><td>${r.counterparty}</td><td>${r.product}</td><td style="text-align:right">${vol}</td>${statusCell}</tr>`;
-      }).join("");
-    }).join("");
-  }
+@staticmethod
+def _build_sale_curves(product_list):
+    """
+    From Location Aggregation ProductA/ProductB, build per-source hourly supply curves.
+    Returns (a_by_source, b_by_source), each: { source: {"product": str, "hours": {he:int -> mw:float}} }.
+    First occurrence of a source wins (mirrors old sale_by_source). The aggregate 'All' row is skipped.
+    """
+    def index(entries):
+        out = {}
+        for e in (entries or []):
+            if not isinstance(e, dict):
+                continue
+            src = Deal_Schedule_Plan._clean(e.get("CP"))
+            if not src or src.lower() == "all":   # 'All' is an aggregate, not a real source
+                continue
+            if src in out:
+                continue                          # first occurrence wins
+            hours = {}
+            for pt in (e.get("data") or []):
+                if not isinstance(pt, dict):
+                    continue
+                try:
+                    he = int(pt.get("HE"))
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    val = float(pt.get("values"))
+                except (TypeError, ValueError):
+                    val = 0.0
+                if val != val:                    # NaN
+                    val = 0.0
+                hours[he] = val
+            out[src] = {"product": Deal_Schedule_Plan._clean(e.get("Product")), "hours": hours}
+        return out
 
-  function renderSchedulesTab() {
-// ---- Build purchase/sale deals FIRST (schedules link to their ids) ----
-const __fp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-const __rows = [];
-__fp.forEach(function (g) { (g.rows || []).forEach(function (r) { __rows.push({ g: g, r: r }); }); });
 
-function __mwFields(mw) { const o = {}; (mw || []).forEach(function (v, h) { o['MW' + (h + 1)] = v; }); return o; }
-function __tagFor(g) { return STATE.tags.find(function (t) { return t.id === g.tag_code; }) || null; }
 
-function __buildDeal(x, i, prefix, mwVal) {
-  const t = __tagFor(x.g);
-  return Object.assign({
-    id: prefix + i,
-    schedule_num: x.g.schedule_number,          // links deal -> schedule
-    deal_num: String(x.r.deal_number),
-    book: x.r.product || 'Amazon',
-    counterparty: x.r.counterparty || '',
-    market: t ? t.source : (x.g.source || ''),
-    zone:   t ? t.sink   : (x.g.sink   || ''),
-    contract: x.r.product || '',
-    product:  x.r.product || '',
-    term: t ? (t.start + ' \u2192 ' + t.end) : '',
-    location: t ? t.location : x.g.source,
-    tag_id:   x.g.tag_code,
-    tag_code: x.g.tag_code,
-    mw: mwVal,
-    status: 'Planned'
-  }, __mwFields(x.r.mw));
-}
+# saledeals now carries the Location Aggregation dict {"ProductA":[...], "ProductB":[...]}
+a_by_source, b_by_source = Deal_Schedule_Plan._build_sale_curves(saledeals)
 
-STATE.purchaseDeals = __rows.filter(function (x) { return x.r.type === 'PURCHASE'; })
-  .map(function (x, i) { return __buildDeal(x, i, 'PUR-', Math.abs(x.r.volume || 0)); });
-STATE.saleDeals = __rows.filter(function (x) { return x.r.type === 'SALE'; })
-  .map(function (x, i) { return __buildDeal(x, i, 'SAL-', (x.r.volume || 0)); });
 
-// ---- Build schedules ENRICHED so Final Deal Schedule Plan renderers don't crash ----
-STATE.schedules = __fp.map(function (g) {
-  const t = __tagFor(g);
-  const purchaseIds = STATE.purchaseDeals
-    .filter(function (p) { return p.schedule_num === g.schedule_number; })
-    .map(function (p) { return p.id; });
-  const saleLinks = STATE.saleDeals
-    .filter(function (s) { return s.schedule_num === g.schedule_number; })
-    .map(function (s) { return { deal_id: s.id, mw: s.mw }; });
-  return {
-    id: g.schedule_number,
-    schedule_num: g.schedule_number,            // renderer reads sch.schedule_num
-    tag_code: g.tag_code,
-    tag_index: g.tag_index,
-    tag_ids: t ? [t.id] : [],                   // sch.tag_ids.forEach(...)
-    path: g.path,
-    source: t ? t.source : g.source,
-    sink:   t ? t.sink   : g.sink,
-    por: t ? t.por : '',
-    pod: t ? t.pod : '',
-    cpse: t ? t.cpse : '',
-    location: t ? t.location : g.source,        // sch.location (used throughout)
-    total_mw: t ? t.mw : Math.abs(g.net_volume || 0),
-    status: g.status === "PLANNED" ? "Planned" : "Imbalance",
-    purchase_deal_ids: purchaseIds,             // sch.purchase_deal_ids.includes/.forEach
-    sale_deals: saleLinks,                      // sch.sale_deals.map/.forEach ({deal_id, mw})
-    profile: (typeof getHourlyProfile === "function" && t) ? getHourlyProfile(t.mw, t._curve) : Array(24).fill(0),
-    rows: g.rows
-  };
-});
+# ---------- SALE: Product A first, overflow to Product B (match on source only) ----------
+src_key = Deal_Schedule_Plan._clean(tag.get("Source"))
+a_entry = a_by_source.get(src_key)
+b_entry = b_by_source.get(src_key)
+a_hours = a_entry["hours"] if a_entry else {}
+b_hours = b_entry["hours"] if b_entry else {}
 
-// keep a valid selection
-if (STATE.schedules.length > 0 && !STATE.schedules.some(function (s) { return s.id === STATE.selectedScheduleId; })) {
-  STATE.selectedScheduleId = STATE.schedules[0].id;
-}
+saleA = [0.0] * len(HES)
+saleB = [0.0] * len(HES)
+sale_total = [0.0] * len(HES)
+for j, he in enumerate(HES):
+    n = need[j]
+    a = min(n, a_hours.get(he, 0.0))                 # <-- need-cap. For verbatim A/B: a = a_hours.get(he, 0.0)
+    a = a if a > 0 else 0.0
+    saleA[j] = round(a, 4)
+    b = min(n - a, b_hours.get(he, 0.0))             # overflow remainder into B (verbatim: b = b_hours.get(he, 0.0))
+    b = b if b > 0 else 0.0
+    saleB[j] = round(b, 4)
+    sale_total[j] = a + b
 
-// ---- Balance stats ----
-const tagsMW  = STATE.tags.reduce(function (s, t) { return s + (t.mw || 0); }, 0);
-const purchMW = STATE.purchaseDeals.reduce(function (s, p) { return s + (p.mw || 0); }, 0);
-const salesMW = STATE.saleDeals.reduce(function (s, sd) { return s + (sd.mw || 0); }, 0);
-const uncommittedTagsMW = STATE.tags.filter(function (t) { return t.status !== "Committed"; })
-  .reduce(function (s, t) { return s + (t.mw || 0); }, 0);
-STATE.balanceStats = {
-  tags_mw: Math.round(tagsMW * 10) / 10,
-  uncommitted_tags_mw: Math.round(uncommittedTagsMW * 10) / 10,
-  purchases_mw: Math.round(purchMW * 10) / 10,
-  sales_mw: Math.round(salesMW * 10) / 10,
-  balanced: Math.abs(purchMW - salesMW) < 0.1,
-  hasAuditFailure: false
-};
+# emit a leg row only when that source matched in the corresponding product list (mirrors old `if sa is not None`)
+if a_entry is not None:
+    rows.append({
+        "type": "SALE",
+        "product": "Product A",
+        "deal_number": Deal_Schedule_Plan._sale_deal_number("A", src_key),
+        "counterparty": a_entry.get("product") or "Amazon Energy Services",
+        "mw": saleA,
+        "volume": round(sum(saleA), 4),              # sale positive
+    })
+if b_entry is not None:
+    rows.append({
+        "type": "SALE",
+        "product": "Product B",
+        "deal_number": Deal_Schedule_Plan._sale_deal_number("B", src_key),
+        "counterparty": b_entry.get("product") or "Amazon Energy Services",
+        "mw": saleB,
+        "volume": round(sum(saleB), 4),
+    })
+
+    pl = product_list or {}
+    return index(pl.get("ProductA")), index(pl.get("ProductB"))
