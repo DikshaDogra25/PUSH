@@ -1,226 +1,48 @@
-import math, random, copy
+// ---- Build purchase/sale deals + balance stats from FINAL_PLAN (dynamic) ----
+const __fp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
+const __rows = [];
+__fp.forEach(function (g) { (g.rows || []).forEach(function (r) { __rows.push({ g: g, r: r }); }); });
 
-def _mw(d, he):
-    """MW value for hour he from a deal/tag dict; None/NaN/missing -> 0.0. Safe if d is None/[]/not a dict."""
-    if not isinstance(d, dict):
-        return 0.0
-    v = d.get(f"MW{he}")
-    try:
-        v = float(v)
-        return 0.0 if math.isnan(v) else v
-    except (TypeError, ValueError):
-        return 0.0
+function __mwFields(mw) { const o = {}; (mw || []).forEach(function (v, h) { o['MW' + (h + 1)] = v; }); return o; }
+function __tagFor(g) { return STATE.tags.find(function (t) { return t.id === g.tag_code; }) || null; }
 
-def _clean(s):
-    return str(s).strip() if s is not None else ""
+function __buildDeal(x, i, prefix, mwVal) {
+  const t = __tagFor(x.g);
+  return Object.assign({
+    id: prefix + i,
+    deal_num: String(x.r.deal_number),          // string, not number  (fix #1)
+    book: x.r.product || 'Amazon',              // present so .toLowerCase() is safe (fix #2)
+    counterparty: x.r.counterparty || '',
+    market: t ? t.source : (x.g.source || ''),
+    zone:   t ? t.sink   : (x.g.sink   || ''),
+    contract: x.r.product || '',
+    product:  x.r.product || '',
+    term: t ? (t.start + ' \u2192 ' + t.end) : '',
+    location: t ? t.location : x.g.source,        // must equal loc.name
+    tag_id:   x.g.tag_code,                        // must equal tag.id, NOT tag_index (linkage fix)
+    tag_code: x.g.tag_code,
+    mw: mwVal,
+    status: 'Planned'
+  }, __mwFields(x.r.mw));
+}
 
-def deal_schedule_plan(saledeals, purchasedeals, tagdata):
-    """
-    Build the Final Deal Schedule Plan.
-      - Per tag, per hour HE1..25 (None->0).
-      - PURCHASE: match deals by tag.PurchaseCounterPartyName == deal.CounterParty, in list order.
-        Fill each hour with min(remaining_need, deal.MW); shortfall carries to the NEXT matching
-        deal until met. A deal touched by a tag is CONSUMED (leftover discarded, not reused by
-        later tags).
-      - SALE: match the sale_deals entry whose key source (before ' | ') == tag.Source. Fill from
-        SDeal_A up to its MW, overflow to SDeal_B, per hour.
-      - Purchase volume negative, sale volume positive (balanced tag nets ~0). Shortfalls -> IMBALANCE.
-    Returns a list of per-tag groups, each with its purchase/sale rows for row-spanning.
-    """
-    HES = list(range(1, 26))
-    purchasedeals = purchasedeals or []
-    tagdata = tagdata or []
+STATE.purchaseDeals = __rows.filter(function (x) { return x.r.type === 'PURCHASE'; })
+  .map(function (x, i) { return __buildDeal(x, i, 'PUR-', Math.abs(x.r.volume || 0)); });
 
-    # Sale lookup keyed by source (left side of "Source | Product"); first occurrence wins.
-    sale_by_source = {}
-    for key, val in (saledeals or {}).items():
-        src = _clean(str(key).split("|")[0])
-        if src not in sale_by_source:
-            sale_by_source[src] = val
+STATE.saleDeals = __rows.filter(function (x) { return x.r.type === 'SALE'; })
+  .map(function (x, i) { return __buildDeal(x, i, 'SAL-', (x.r.volume || 0)); });
 
-    consumed = [False] * len(purchasedeals)   # global consumption across tags
-    plan = []
+const tagsMW  = STATE.tags.reduce(function (s, t) { return s + (t.mw || 0); }, 0);
+const purchMW = STATE.purchaseDeals.reduce(function (s, p) { return s + (p.mw || 0); }, 0);
+const salesMW = STATE.saleDeals.reduce(function (s, sd) { return s + (sd.mw || 0); }, 0);
+const uncommittedTagsMW = STATE.tags.filter(function (t) { return t.status !== "Committed"; })
+  .reduce(function (s, t) { return s + (t.mw || 0); }, 0);
 
-    for tag in tagdata:
-        tag_code = _clean(tag.get("TagCode"))
-        tag_index = tag.get("TagIndex")
-        source = _clean(tag.get("Source"))
-        sink = _clean(tag.get("Sink"))
-        cp = _clean(tag.get("PurchaseCounterPartyName"))
-        need = [_mw(tag, he) for he in HES]
-
-        schedule_number = f"P-{random.randint(10000000, 99999999)}"
-        rows = []
-
-        # ---------- PURCHASE: consume matching-CP deals, carry shortfall ----------
-        remaining = need[:]
-        purchase_total = [0.0] * len(HES)
-        for i, pd in enumerate(purchasedeals):
-            if all(r <= 1e-9 for r in remaining):
-                break
-            if consumed[i] or _clean(pd.get("CounterParty")) != cp:
-                continue
-            alloc = [0.0] * len(HES)
-            used = False
-            for j, he in enumerate(HES):
-                take = min(remaining[j], _mw(pd, he))
-                if take > 0:
-                    alloc[j] = round(take, 4)
-                    remaining[j] = round(remaining[j] - take, 6)
-                    purchase_total[j] += take
-                    used = True
-            consumed[i] = True   # consumed once touched; leftover discarded
-            if used:
-                rows.append({
-                    "type": "PURCHASE",
-                    "deal_number": pd.get("DealNumber"),
-                    "counterparty": _clean(pd.get("CounterParty")),
-                    "product": _clean(pd.get("Product") or pd.get("DealType")),
-                    "mw": alloc,
-                    "volume": round(-sum(alloc), 4),   # purchase negative
-                })
-
-        # ---------- SALE: A first, overflow to B (match on source only) ----------
-        entry = sale_by_source.get(source)
-        sa = entry.get("SDeal_A") if isinstance(entry, dict) else None
-        sb = entry.get("SDeal_B") if isinstance(entry, dict) else None
-        sa = sa if isinstance(sa, dict) else None
-        sb = sb if isinstance(sb, dict) else None
-
-        saleA = [0.0] * len(HES)
-        saleB = [0.0] * len(HES)
-        sale_total = [0.0] * len(HES)
-        for j, he in enumerate(HES):
-            n = need[j]
-            a = min(n, _mw(sa, he))
-            a = a if a > 0 else 0.0
-            saleA[j] = round(a, 4)
-            b = min(n - a, _mw(sb, he))
-            b = b if b > 0 else 0.0
-            saleB[j] = round(b, 4)
-            sale_total[j] = a + b
-
-        if sa is not None:
-            rows.append({
-                "type": "SALE", "product": "Product A",
-                "deal_number": sa.get("DealNumber"),
-                "counterparty": _clean(sa.get("CounterParty")),
-                "mw": saleA, "volume": round(sum(saleA), 4),   # sale positive
-            })
-        if sb is not None:
-            rows.append({
-                "type": "SALE", "product": "Product B",
-                "deal_number": sb.get("DealNumber"),
-                "counterparty": _clean(sb.get("CounterParty")),
-                "mw": saleB, "volume": round(sum(saleB), 4),
-            })
-
-        # ---------- balance / status ----------
-        ptot = round(sum(purchase_total), 4)
-        stot = round(sum(sale_total), 4)
-        need_total = round(sum(need), 4)
-        balanced = abs(ptot - stot) < 0.01 and abs(ptot - need_total) < 0.01
-        # net across all rows should be ~0 when balanced
-        net = round(sum(r["volume"] for r in rows), 4)
-
-        plan.append({
-            "schedule_number": schedule_number,
-            "tag_code": tag_code,
-            "tag_index": tag_index,
-            "source": source,
-            "sink": sink,
-            "path": f"{source} \u2192 {sink}",
-            "status": "PLANNED" if balanced else "IMBALANCE",
-            "net_volume": net,
-            "rows": rows,
-        })
-
-    return plan
-
-
-// Final Deal Schedule Plan rows (built in Python by deal_schedule_plan()); pipeline replaces [].
-const FINAL_PLAN = [];
-1. Data injection (right after RESULT_ALLOCATION, before __resAllocToArr):
-
-function renderFinalPlan() {
-    if (typeof FINAL_PLAN === "undefined" || !FINAL_PLAN) return;
-    const table = document.getElementById("schedules-tabular-grid");
-    const tbody = table ? table.querySelector("tbody") : null;
-    if (!tbody) return;
-    tbody.innerHTML = FINAL_PLAN.map(function (g) {
-      const span = g.rows.length || 1;
-      return g.rows.map(function (r, i) {
-        const tagCells = i === 0
-          ? `<td rowspan="${span}">${g.schedule_number}</td>
-             <td rowspan="${span}" style="color:var(--orange)">${g.tag_code}</td>
-             <td rowspan="${span}">${g.path}</td>` : "";
-        const badge = r.type === "PURCHASE"
-          ? `<span class="badge purchase">PURCHASE</span>`
-          : `<span class="badge sale">SALE</span>`;
-        const vol = `<span style="color:${r.volume < 0 ? 'var(--orange)' : 'var(--green)'}">${r.volume > 0 ? '+' : ''}${r.volume.toFixed(1)}</span>`;
-        const statusCell = i === 0
-          ? `<td rowspan="${span}">${g.status}</td>` : "";
-        return `<tr>${tagCells}<td>${badge}</td><td>${r.deal_number}</td><td>${r.counterparty}</td><td>${r.product}</td><td style="text-align:right">${vol}</td>${statusCell}</tr>`;
-      }).join("");
-    }).join("");
-  }
-
-  function renderSchedulesTab() {
-Call site (first lines of renderSchedulesTab):
-renderFinalPlan();
-    if (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) {
-      const __b = document.getElementById("badge-schedules-count");
-      if (__b) __b.innerText = FINAL_PLAN.length;
-    }
-
-
-
-t = data[1][0]  # first tag you're passing in
-print("TAG keys:", list(t.keys()))
-print("TAG cp field candidates:", {k: t.get(k) for k in t if 'ounter' in k.lower() or 'source' in k.lower()})
-print("first purchase deal:", {k: purchasedeal[0].get(k) for k in ('CounterParty','DealNumber')} if purchasedeal else None)
-print("sale_deals keys:", list(productList.keys())[:3] if isinstance(productList, dict) else 'not a dict')
-
-final_plan = (result or {}).get("FINAL_PLAN") or []
-final_json = json.dumps(final_plan, allow_nan=False, ensure_ascii=False)
-new = re.sub(r'const FINAL_PLAN = \[\];',
-             f'const FINAL_PLAN = {final_json};', new, count=1)
-
-STATE.schedules = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN ? FINAL_PLAN : []).map(function (g) {
-  return {
-    id: g.schedule_number,
-    tag_code: g.tag_code,
-    tag_index: g.tag_index,
-    path: g.path,
-    status: g.status === "PLANNED" ? "Planned" : "Imbalance",
-    rows: g.rows           // purchase/sale rows for the tabular view
-  };
-});
-
-// ---- Build purchase/sale deals + balance stats from FINAL_PLAN (dynamic; no static data) ----
-    const __fp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    const __rows = [];
-    __fp.forEach(function (g) { (g.rows || []).forEach(function (r) { __rows.push({ g: g, r: r }); }); });
-    function __mwFields(mw) { const o = {}; (mw || []).forEach(function (v, h) { o['MW' + (h + 1)] = v; }); return o; }
-    STATE.purchaseDeals = __rows.filter(function (x) { return x.r.type === 'PURCHASE'; }).map(function (x, i) {
-      return Object.assign({ id: 'PUR-' + i, deal_num: x.r.deal_number, counterparty: x.r.counterparty,
-        product: x.r.product, location: x.g.source, tag_id: x.g.tag_index, tag_code: x.g.tag_code,
-        mw: Math.abs(x.r.volume || 0), status: 'Planned' }, __mwFields(x.r.mw));
-    });
-    STATE.saleDeals = __rows.filter(function (x) { return x.r.type === 'SALE'; }).map(function (x, i) {
-      return Object.assign({ id: 'SAL-' + i, deal_num: x.r.deal_number, counterparty: x.r.counterparty,
-        product: x.r.product, location: x.g.source, tag_id: x.g.tag_index, tag_code: x.g.tag_code,
-        mw: (x.r.volume || 0), status: 'Planned' }, __mwFields(x.r.mw));
-    });
-    const tagsMW = STATE.tags.reduce(function (sum, t) { return sum + (t.mw || 0); }, 0);
-    const purchMW = STATE.purchaseDeals.reduce(function (sum, pd) { return sum + (pd.mw || 0); }, 0);
-    const salesMW = STATE.saleDeals.reduce(function (sum, sd) { return sum + (sd.mw || 0); }, 0);
-    const uncommittedTagsMW = STATE.tags.filter(function (t) { return t.status !== "Committed"; }).reduce(function (sum, t) { return sum + (t.mw || 0); }, 0);
-    STATE.balanceStats = {
-      tags_mw: Math.round(tagsMW * 10) / 10,
-      uncommitted_tags_mw: Math.round(uncommittedTagsMW * 10) / 10,
-      purchases_mw: Math.round(purchMW * 10) / 10,
-      sales_mw: Math.round(salesMW * 10) / 10,
-      balanced: Math.abs(purchMW - salesMW) < 0.1,
-      hasAuditFailure: false
-    };
+STATE.balanceStats = {
+  tags_mw: Math.round(tagsMW * 10) / 10,
+  uncommitted_tags_mw: Math.round(uncommittedTagsMW * 10) / 10,
+  purchases_mw: Math.round(purchMW * 10) / 10,
+  sales_mw: Math.round(salesMW * 10) / 10,
+  balanced: Math.abs(purchMW - salesMW) < 0.1,
+  hasAuditFailure: false
+};
