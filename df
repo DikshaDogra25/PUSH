@@ -142,6 +142,30 @@ def deal_schedule_plan(saledeals, purchasedeals, tagdata):
 const FINAL_PLAN = [];
 1. Data injection (right after RESULT_ALLOCATION, before __resAllocToArr):
 
+function renderFinalPlan() {
+    if (typeof FINAL_PLAN === "undefined" || !FINAL_PLAN) return;
+    const table = document.getElementById("schedules-tabular-grid");
+    const tbody = table ? table.querySelector("tbody") : null;
+    if (!tbody) return;
+    tbody.innerHTML = FINAL_PLAN.map(function (g) {
+      const span = g.rows.length || 1;
+      return g.rows.map(function (r, i) {
+        const tagCells = i === 0
+          ? `<td rowspan="${span}">${g.schedule_number}</td>
+             <td rowspan="${span}" style="color:var(--orange)">${g.tag_code}</td>
+             <td rowspan="${span}">${g.path}</td>` : "";
+        const badge = r.type === "PURCHASE"
+          ? `<span class="badge purchase">PURCHASE</span>`
+          : `<span class="badge sale">SALE</span>`;
+        const vol = `<span style="color:${r.volume < 0 ? 'var(--orange)' : 'var(--green)'}">${r.volume > 0 ? '+' : ''}${r.volume.toFixed(1)}</span>`;
+        const statusCell = i === 0
+          ? `<td rowspan="${span}">${g.status}</td>` : "";
+        return `<tr>${tagCells}<td>${badge}</td><td>${r.deal_number}</td><td>${r.counterparty}</td><td>${r.product}</td><td style="text-align:right">${vol}</td>${statusCell}</tr>`;
+      }).join("");
+    }).join("");
+  }
+
+  function renderSchedulesTab() {
 Call site (first lines of renderSchedulesTab):
 renderFinalPlan();
     if (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) {
