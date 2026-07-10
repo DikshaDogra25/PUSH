@@ -185,3 +185,14 @@ final_plan = (result or {}).get("FINAL_PLAN") or []
 final_json = json.dumps(final_plan, allow_nan=False, ensure_ascii=False)
 new = re.sub(r'const FINAL_PLAN = \[\];',
              f'const FINAL_PLAN = {final_json};', new, count=1)
+
+STATE.schedules = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN ? FINAL_PLAN : []).map(function (g) {
+  return {
+    id: g.schedule_number,
+    tag_code: g.tag_code,
+    tag_index: g.tag_index,
+    path: g.path,
+    status: g.status === "PLANNED" ? "Planned" : "Imbalance",
+    rows: g.rows           // purchase/sale rows for the tabular view
+  };
+});
