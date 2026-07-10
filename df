@@ -172,3 +172,11 @@ renderFinalPlan();
       const __b = document.getElementById("badge-schedules-count");
       if (__b) __b.innerText = FINAL_PLAN.length;
     }
+
+
+
+t = data[1][0]  # first tag you're passing in
+print("TAG keys:", list(t.keys()))
+print("TAG cp field candidates:", {k: t.get(k) for k in t if 'ounter' in k.lower() or 'source' in k.lower()})
+print("first purchase deal:", {k: purchasedeal[0].get(k) for k in ('CounterParty','DealNumber')} if purchasedeal else None)
+print("sale_deals keys:", list(productList.keys())[:3] if isinstance(productList, dict) else 'not a dict')
