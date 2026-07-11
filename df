@@ -1,90 +1,77 @@
-@staticmethod
-def _build_sale_curves(product_list):
-    """
-    From Location Aggregation ProductA/ProductB, build per-source hourly supply curves.
-    Returns (a_by_source, b_by_source), each: { source: {"product": str, "hours": {he:int -> mw:float}} }.
-    First occurrence of a source wins (mirrors old sale_by_source). The aggregate 'All' row is skipped.
-    """
-    def index(entries):
-        out = {}
-        for e in (entries or []):
-            if not isinstance(e, dict):
-                continue
-            src = Deal_Schedule_Plan._clean(e.get("CP"))
-            if not src or src.lower() == "all":   # 'All' is an aggregate, not a real source
-                continue
-            if src in out:
-                continue                          # first occurrence wins
-            hours = {}
-            for pt in (e.get("data") or []):
-                if not isinstance(pt, dict):
-                    continue
-                try:
-                    he = int(pt.get("HE"))
-                except (TypeError, ValueError):
-                    continue
-                try:
-                    val = float(pt.get("values"))
-                except (TypeError, ValueError):
-                    val = 0.0
-                if val != val:                    # NaN
-                    val = 0.0
-                hours[he] = val
-            out[src] = {"product": Deal_Schedule_Plan._clean(e.get("Product")), "hours": hours}
-        return out
+BEFORE (only FINAL_PLAN injected):
+final_plan = (result or {}).get("FINAL_PLAN") or []
+final_json = json.dumps(final_plan, allow_nan=False, ensure_ascii=False)
+new = re.sub(r'const FINAL_PLAN = \[\];', f'const FINAL_PLAN = {final_json};', new, count=1)
 
+return new
+AFTER (add the raw purchase deals — fail-loud, same style):
+final_plan = (result or {}).get("FINAL_PLAN") or []
+final_json = json.dumps(final_plan, allow_nan=False, ensure_ascii=False)
+new = re.sub(r'const FINAL_PLAN = \[\];', f'const FINAL_PLAN = {final_json};', new, count=1)
 
+# --- raw purchase deals, passed through verbatim (no allocation, no clubbing) ---
+purchase_deals = (result or {}).get("Purchase Deals") or []
+pd_json = json.dumps(purchase_deals, allow_nan=False, ensure_ascii=False)
+new, n = re.subn(r'const PURCHASE_DEALS = \[\];', f'const PURCHASE_DEALS = {pd_json};', new, count=1)
+if n != 1:
+    raise RuntimeError("Anchor 'const PURCHASE_DEALS = [];' not found in template")
 
-# saledeals now carries the Location Aggregation dict {"ProductA":[...], "ProductB":[...]}
-a_by_source, b_by_source = Deal_Schedule_Plan._build_sale_curves(saledeals)
+return new
 
+BEFORE
+const FINAL_PLAN = [{"schedule_number": "P-43658072", ...}];
+function __resAllocToArr(series) {
 
-# ---------- SALE: Product A first, overflow to Product B (match on source only) ----------
-src_key = Deal_Schedule_Plan._clean(tag.get("Source"))
-a_entry = a_by_source.get(src_key)
-b_entry = b_by_source.get(src_key)
-a_hours = a_entry["hours"] if a_entry else {}
-b_hours = b_entry["hours"] if b_entry else {}
+AFTER
+const FINAL_PLAN = [{"schedule_number": "P-43658072", ...}];
+const PURCHASE_DEALS = [];
 
-saleA = [0.0] * len(HES)
-saleB = [0.0] * len(HES)
-sale_total = [0.0] * len(HES)
-for j, he in enumerate(HES):
-    n = need[j]
-    a = min(n, a_hours.get(he, 0.0))                 # <-- need-cap. For verbatim A/B: a = a_hours.get(he, 0.0)
-    a = a if a > 0 else 0.0
-    saleA[j] = round(a, 4)
-    b = min(n - a, b_hours.get(he, 0.0))             # overflow remainder into B (verbatim: b = b_hours.get(he, 0.0))
-    b = b if b > 0 else 0.0
-    saleB[j] = round(b, 4)
-    sale_total[j] = a + b
+BEFORE
+// Validate balance checks
+    //const tagsMW = STATE.tags.reduce((sum, t) => sum + t.mw, 0);
+    //const purchMW = purchases.reduce((sum, p) => sum + p.mw, 0);
+    //const salesMW = STATE.saleDeals.reduce((sum, s) => sum + s.mw, 0);
+    ... (all the commented audit lines) ...
+    /*STATE.balanceStats = {
+      ...
+    };*/
 
-# emit a leg row only when that source matched in the corresponding product list (mirrors old `if sa is not None`)
-if a_entry is not None:
-    rows.append({
-        "type": "SALE",
-        "product": "Product A",
-        "deal_number": Deal_Schedule_Plan._sale_deal_number("A", src_key),
-        "counterparty": a_entry.get("product") or "Amazon Energy Services",
-        "mw": saleA,
-        "volume": round(sum(saleA), 4),              # sale positive
-    })
-if b_entry is not None:
-    rows.append({
-        "type": "SALE",
-        "product": "Product B",
-        "deal_number": Deal_Schedule_Plan._sale_deal_number("B", src_key),
-        "counterparty": b_entry.get("product") or "Amazon Energy Services",
-        "mw": saleB,
-        "volume": round(sum(saleB), 4),
-    })
+AFTER
+// ---- Purchase Deals tab: pass-through from Python. 1 deal in = 1 row out. ----
+    // Independent of FINAL_PLAN / Deal Schedule Plan. No allocation, no merging.
+    const __pd = (typeof PURCHASE_DEALS !== "undefined" && PURCHASE_DEALS) ? PURCHASE_DEALS : [];
+    const __s = function (v) { return (v === null || v === undefined) ? "" : String(v); };
+    const __n = function (v) { const x = parseFloat(v); return isFinite(x) ? x : 0; };
 
-    pl = product_list or {}
-    return index(pl.get("ProductA")), index(pl.get("ProductB"))
+    STATE.purchaseDeals = __pd.map(function (d, i) {
+      // hourly MW1..MW25 straight off the deal (kept for the drawer/tooltip)
+      const hrs = {};
+      let hourSum = 0;
+      for (let h = 1; h <= 25; h++) {
+        const v = __n(d["MW" + h]);
+        hrs["MW" + h] = v;
+        hourSum += v;
+      }
+      // volume: use the deal's own field if it has one, else the sum of its hours
+      const vol = (d.Volume !== undefined) ? __n(d.Volume)
+                : (d.TotalMW !== undefined) ? __n(d.TotalMW)
+                : Math.round(hourSum * 10) / 10;
 
-
-import zlib
-...
-@staticmethod
-def _sale_deal_number(leg, source):
-    return int(zlib.crc32(f"SALE|{leg}|{source}".encode("utf-8")) % 9_000_000 + 1_000_000)
+      return Object.assign({
+        id: "PUR-" + i,                                  // unique per deal -> no dedup
+        deal_num: __s(d.DealNumber),                     // STRING (renderer calls .toLowerCase())
+        book: __s(d.Book || d.Product),
+        counterparty: __s(d.CounterParty),
+        market: __s(d.Market || d.Source),
+        zone: __s(d.Zone || d.Sink),
+        contract: __s(d.ContractNumber || d.Contract),
+        product: __s(d.Product),
+        term: __s(d.StartDate) + (d.EndDate ? " \u2192 " + __s(d.EndDate) : ""),
+        location: __s(d.Location || d.Source || d.CounterParty),
+        mw: vol,
+        status: "Planned"
+      }, hrs);
+    });
+  }
+  }
+function __resAllocToArr(series) {
