@@ -1,67 +1,7 @@
-balanceStats: {
-      tags_mw: 0,
-      purchases_mw: 0,
-      sales_mw: 0,
-      balanced: true
-    }
-
-balanceStats: {
-      tags_mw: 0,
-      uncommitted_tags_mw: 0,
-      purchases_mw: 0,
-      sales_mw: 0,
-      balanced: true,
-      hasAuditFailure: false
-    }
-
-// Validate balance checks
-    //const tagsMW = STATE.tags.reduce((sum, t) => sum + t.mw, 0);
-    ... (all commented lines) ...
-    /*STATE.balanceStats = {
-      ...
-    };*/
-  }
-
-// ---- Balance stats from FINAL_PLAN (schedule-plan side only) ----
-    const __bfp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    let __purchMW = 0, __salesMW = 0;
-    __bfp.forEach(function (g) {
-      (g.rows || []).forEach(function (r) {
-        const v = Number(r.volume || 0);
-        if (r.type === "PURCHASE") __purchMW += Math.abs(v);
-        else if (r.type === "SALE") __salesMW += v;
-      });
-    });
-    const __tagsMW = STATE.tags.reduce(function (s, t) { return s + (t.mw || 0); }, 0);
-    const __uncommMW = STATE.tags.filter(function (t) { return t.status !== "Committed"; })
-                                 .reduce(function (s, t) { return s + (t.mw || 0); }, 0);
-    const __auditFail = (STATE.locations || []).some(function (loc) {
-      return STATE.locationStates[loc.name] === 'Rejected';
-    });
-
-    STATE.balanceStats = {
-      tags_mw: Math.round(__tagsMW * 10) / 10,
-      uncommitted_tags_mw: Math.round(__uncommMW * 10) / 10,
-      purchases_mw: Math.round(__purchMW * 10) / 10,
-      sales_mw: Math.round(__salesMW * 10) / 10,
-      balanced: Math.abs(__purchMW - __salesMW) < 0.1,   // "Purchase / sale mismatch"
-      hasAuditFailure: __auditFail
-    };
-  }
-
-BEFORE (inside renderFinalPlan, the two lines that set status)
-const st = STATE.committed ? 'Committed' : (STATE.locationStates[g.source] || 'Draft');
-      const stColor = (st === 'Committed' || st === 'Accepted') ? 'green' : (st === 'Rejected' ? 'red' : 'amber');
-after
-// net the rows: purchases are negative, sales positive -> balanced tag nets ~0
-      let __net = 0, __hasRows = false;
-      (g.rows || []).forEach(function (r) { __net += Number(r.volume || 0); __hasRows = true; });
-      const __balanced = __hasRows && Math.abs(__net) < 0.1;
+const __balanced = __hasRows && Math.abs(__net) < 0.1;
       const gStatus = __hasRows ? (__balanced ? 'PLANNED' : 'IMBALANCE') : (g.status || 'PLANNED');
       const stColor = __balanced ? 'green' : (__hasRows ? 'red' : 'amber');
 
-
-nd in the statusCell template, change the badge to use it:
-<span class="status-badge ${stColor}">${g.status}</span>
-
-<span class="status-badge ${stColor}">${gStatus}</span>
+const __balanced = __hasRows && Math.abs(__net) < 0.1;
+      const gStatus = __balanced ? 'PLANNED' : 'IMBALANCE';   // no rows -> IMBALANCE
+      const stColor = __balanced ? 'green' : 'red';
