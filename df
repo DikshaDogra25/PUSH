@@ -1,7 +1,86 @@
-const __balanced = __hasRows && Math.abs(__net) < 0.1;
-      const gStatus = __hasRows ? (__balanced ? 'PLANNED' : 'IMBALANCE') : (g.status || 'PLANNED');
-      const stColor = __balanced ? 'green' : (__hasRows ? 'red' : 'amber');
+// Purchases for this specific tag
+    const tagPurchases = STATE.purchaseDeals.filter(p => p.tag_id === tag.id);
+    let purchasesHTML = '';
+    if (tagPurchases.length === 0) {
+      purchasesHTML = `...No Purchase Deals...`;
+    } else {
+      tagPurchases.forEach(p => { ... });
+    }
+    const purchasesTotalSum = tagPurchases.reduce((sum, p) => sum + p.mw, 0);
 
-const __balanced = __hasRows && Math.abs(__net) < 0.1;
-      const gStatus = __balanced ? 'PLANNED' : 'IMBALANCE';   // no rows -> IMBALANCE
-      const stColor = __balanced ? 'green' : 'red';
+    // Sales from this tag's schedule
+    const tagSchedule = STATE.schedules.find(s => s.tag_code === tag.tag_code);
+    let salesHTML = '';
+    let salesTotalSum = 0;
+    if (tagSchedule && tagSchedule.sale_deals.length > 0) {
+      tagSchedule.sale_deals.forEach(sd => { ... });
+    } else {
+      salesHTML = `...No Sale Deals...`;
+    }
+
+
+
+// ---- Both sides sourced from FINAL_PLAN (Deal Schedule Plan), matched on tag_code ----
+    const __fpAll = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
+    const __fpg = __fpAll.find(g => g.tag_code === tag.tag_code) || null;
+    const __fpRows = __fpg ? (__fpg.rows || []) : [];
+
+    const tagPurchases = __fpRows.filter(r => r.type === 'PURCHASE');
+    const tagSaleRows  = __fpRows.filter(r => r.type === 'SALE');
+
+    let purchasesHTML = '';
+    if (tagPurchases.length === 0) {
+      purchasesHTML = `<div style="color:var(--ink-dim); font-size:9.5px; text-align:center; font-style:italic; padding:4px 0;">No Purchase Deals</div>`;
+    } else {
+      tagPurchases.forEach(r => {
+        const amt = Math.abs(Number(r.volume || 0));
+        purchasesHTML += `
+          <div class="wireframe-row-item" style="display:flex; flex-direction:column; align-items:flex-start; padding:4px 6px;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <span style="font-family:var(--mono); font-weight:600; color:var(--ink-primary); font-size:10px; display:flex; align-items:center; gap:4px;">
+                <i data-lucide="shopping-bag" style="width:10px; height:10px; color:var(--ink-dim);"></i> ${String(r.deal_number)}
+              </span>
+              <span style="font-family:var(--mono); font-weight:700; color:var(--orange); font-size:10px;">-${amt.toFixed(1)} MW</span>
+            </div>
+            <div style="font-size:7.5px; color:var(--ink-dim); margin-top:1.5px; padding-left:14px; font-weight:500;">${r.counterparty || ''} · ${r.product || ''}</div>
+          </div>`;
+      });
+    }
+    const purchasesTotalSum = tagPurchases.reduce((sum, r) => sum + Math.abs(Number(r.volume || 0)), 0);
+
+    let salesHTML = '';
+    let salesTotalSum = 0;
+    if (tagSaleRows.length === 0) {
+      salesHTML = `<div style="color:var(--ink-dim); font-size:9.5px; text-align:center; font-style:italic; padding:4px 0;">No Sale Deals</div>`;
+    } else {
+      tagSaleRows.forEach(r => {
+        const amt = Number(r.volume || 0);
+        const isA = /A\s*$/.test(String(r.product || ''));   // "Product A" vs "Product B"
+        const color = isA ? 'var(--green)' : 'var(--blue)';
+        const iconName = isA ? 'zap' : 'activity';
+        salesHTML += `
+          <div class="wireframe-row-item" style="display:flex; flex-direction:column; align-items:flex-start; padding:4px 6px;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+              <span style="font-family:var(--sans); font-weight:600; color:var(--ink-primary); font-size:10px; display:flex; align-items:center; gap:4px;">
+                <i data-lucide="${iconName}" style="width:10px; height:10px; color:${color};"></i> ${String(r.deal_number)}
+              </span>
+              <span style="font-family:var(--mono); font-weight:700; color:${color}; font-size:10px;">+${amt.toFixed(1)} MW</span>
+            </div>
+            <div style="font-size:7.5px; color:var(--ink-dim); margin-top:1.5px; padding-left:14px; font-weight:500;">Product: ${r.product || ''}</div>
+          </div>`;
+        salesTotalSum += amt;
+      });
+    }
+    const tagSchedule = STATE.schedules.find(s => s.tag_code === tag.tag_code);
+
+
+
+const scheduleId = tagSchedule ? tagSchedule.id : `SCH-AMZ-${tag.id.replace('TAG-AMZ-', '')}`;
+    const scheduleNum = tagSchedule ? tagSchedule.schedule_num : scheduleId;
+
+const scheduleId = __fpg ? __fpg.schedule_number : (tagSchedule ? tagSchedule.id : `SCH-AMZ-${tag.id}`);
+    const scheduleNum = scheduleId;
+
+
+
+
