@@ -1,41 +1,31 @@
 // BEFORE
-          <i data-lucide="tag" style="width:10px; height:10px; color:var(--green);"></i> ${tag.tag_code}
-        </span>
-        <span style="font-family:var(--mono); font-weight:700; color:var(--green); font-size:10.5px;">${tag.mw.toFixed(1)} MW</span>
+    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
+    // Show the result's A/B split VERBATIM (already allocated by your rule engine)
+    loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileTotal = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+    // Table columns = per-hour AVERAGE over HE1-24
+    loc.allocA = Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+    loc.allocB = Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+    loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+  });
 
 // AFTER
-          <i data-lucide="tag" style="width:10px; height:10px; color:var(--amber);"></i> ${tag.tag_code}
-        </span>
-        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${tag.mw.toFixed(1)} MW</span>
+    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
 
-// BEFORE
-        const isA = /A\s*$/.test(String(r.product || ''));
-        const color = isA ? 'var(--green)' : 'var(--blue)';
+    // Keep the rule engine's A/B split curves — these drive the allocation chart only.
+    loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
+    loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
 
-// AFTER
-        const isA = /\bA\b/.test(String(r.product || ''));   // "Product A" -> A, else B
-        const color = isA ? 'var(--green)' : 'var(--blue)';
-        // if B still renders amber, --blue is likely unset; hardcode: '#5B8FF9'
+    // Per-hour averages for the Location Aggregation table columns (display only).
+    loc.allocA = Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+    loc.allocB = Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
 
-// BEFORE
-    let demandSalesMatch = true;
-    for (let h = 0; h < 24; h++) {
-      if (Math.abs(activeLoc.profileTotal[h] - (activeLoc.profileA[h] + activeLoc.profileB[h])) > 0.1) {
-        demandSalesMatch = false;
-        break;
-      }
-    }
+    // Energy totals for reconciling against deal volumes (24h sums, same unit as FINAL_PLAN).
+    loc.energyA = Math.round(A.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+    loc.energyB = Math.round(B.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+    loc.energyMW = Math.round((loc.energyA + loc.energyB) * 10) / 10;
 
-// AFTER
-    const __hasPurch = __locGroups.some(g => (g.rows || []).some(r => r.type === 'PURCHASE'));
-    const __hasSale  = __locGroups.some(g => (g.rows || []).some(r => r.type === 'SALE'));
-
-    let demandSalesMatch = __hasPurch && __hasSale;   // missing either leg -> Failed
-    if (demandSalesMatch) {
-      for (let h = 0; h < 24; h++) {
-        if (Math.abs(activeLoc.profileTotal[h] - (activeLoc.profileA[h] + activeLoc.profileB[h])) > 0.1) {
-          demandSalesMatch = false;
-          break;
-        }
-      }
-    }
+    // DO NOT overwrite loc.profileTotal / loc.totalMW.
+    // Those stay TAG-DERIVED (from Unscheduled Tags) and are the authoritative tag figures.
+  });
