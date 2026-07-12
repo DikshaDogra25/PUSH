@@ -1,86 +1,41 @@
-// Purchases for this specific tag
-    const tagPurchases = STATE.purchaseDeals.filter(p => p.tag_id === tag.id);
-    let purchasesHTML = '';
-    if (tagPurchases.length === 0) {
-      purchasesHTML = `...No Purchase Deals...`;
-    } else {
-      tagPurchases.forEach(p => { ... });
-    }
-    const purchasesTotalSum = tagPurchases.reduce((sum, p) => sum + p.mw, 0);
+const locPurchases = STATE.purchaseDeals.filter(p => p.location === activeLoc.name);
+    const purchasesTotalSum = locPurchases.reduce((sum, p) => sum + p.mw, 0);
+    const salesTotalSum = activeLoc.allocA + activeLoc.allocB;
+    const netDiff = salesTotalSum - purchasesTotalSum;
+    const netBalanced = Math.abs(netDiff) < 0.1;
 
-    // Sales from this tag's schedule
-    const tagSchedule = STATE.schedules.find(s => s.tag_code === tag.tag_code);
-    let salesHTML = '';
-    let salesTotalSum = 0;
-    if (tagSchedule && tagSchedule.sale_deals.length > 0) {
-      tagSchedule.sale_deals.forEach(sd => { ... });
-    } else {
-      salesHTML = `...No Sale Deals...`;
-    }
+    // Check tags matching sale deals for energy flow check
+    const activeLocTags = STATE.tags.filter(t => t.location === activeLoc.name);
+    const tagsTotalSum = activeLocTags.reduce((sum, t) => sum + t.mw, 0);
+    const energyFlowMatched = Math.abs(tagsTotalSum - salesTotalSum) < 0.1;
 
 
+// ---- Audits sourced from FINAL_PLAN (same data as the flow diagram below) ----
+    const activeLocTags = STATE.tags.filter(t => t.location === activeLoc.name);
+    const tagsTotalSum = activeLocTags.reduce((sum, t) => sum + (t.mw || 0), 0);
 
-// ---- Both sides sourced from FINAL_PLAN (Deal Schedule Plan), matched on tag_code ----
-    const __fpAll = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    const __fpg = __fpAll.find(g => g.tag_code === tag.tag_code) || null;
-    const __fpRows = __fpg ? (__fpg.rows || []) : [];
+    const __fpAudit = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
+    const __locTagCodes = new Set(activeLocTags.map(t => t.tag_code));
+    const __locGroups = __fpAudit.filter(g => __locTagCodes.has(g.tag_code));
 
-    const tagPurchases = __fpRows.filter(r => r.type === 'PURCHASE');
-    const tagSaleRows  = __fpRows.filter(r => r.type === 'SALE');
-
-    let purchasesHTML = '';
-    if (tagPurchases.length === 0) {
-      purchasesHTML = `<div style="color:var(--ink-dim); font-size:9.5px; text-align:center; font-style:italic; padding:4px 0;">No Purchase Deals</div>`;
-    } else {
-      tagPurchases.forEach(r => {
-        const amt = Math.abs(Number(r.volume || 0));
-        purchasesHTML += `
-          <div class="wireframe-row-item" style="display:flex; flex-direction:column; align-items:flex-start; padding:4px 6px;">
-            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
-              <span style="font-family:var(--mono); font-weight:600; color:var(--ink-primary); font-size:10px; display:flex; align-items:center; gap:4px;">
-                <i data-lucide="shopping-bag" style="width:10px; height:10px; color:var(--ink-dim);"></i> ${String(r.deal_number)}
-              </span>
-              <span style="font-family:var(--mono); font-weight:700; color:var(--orange); font-size:10px;">-${amt.toFixed(1)} MW</span>
-            </div>
-            <div style="font-size:7.5px; color:var(--ink-dim); margin-top:1.5px; padding-left:14px; font-weight:500;">${r.counterparty || ''} · ${r.product || ''}</div>
-          </div>`;
+    let purchasesTotalSum = 0, salesTotalSum = 0;
+    __locGroups.forEach(g => {
+      (g.rows || []).forEach(r => {
+        const v = Number(r.volume || 0);
+        if (r.type === "PURCHASE") purchasesTotalSum += Math.abs(v);
+        else if (r.type === "SALE") salesTotalSum += v;
       });
-    }
-    const purchasesTotalSum = tagPurchases.reduce((sum, r) => sum + Math.abs(Number(r.volume || 0)), 0);
+    });
+    purchasesTotalSum = Math.round(purchasesTotalSum * 10) / 10;
+    salesTotalSum = Math.round(salesTotalSum * 10) / 10;
 
-    let salesHTML = '';
-    let salesTotalSum = 0;
-    if (tagSaleRows.length === 0) {
-      salesHTML = `<div style="color:var(--ink-dim); font-size:9.5px; text-align:center; font-style:italic; padding:4px 0;">No Sale Deals</div>`;
-    } else {
-      tagSaleRows.forEach(r => {
-        const amt = Number(r.volume || 0);
-        const isA = /A\s*$/.test(String(r.product || ''));   // "Product A" vs "Product B"
-        const color = isA ? 'var(--green)' : 'var(--blue)';
-        const iconName = isA ? 'zap' : 'activity';
-        salesHTML += `
-          <div class="wireframe-row-item" style="display:flex; flex-direction:column; align-items:flex-start; padding:4px 6px;">
-            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
-              <span style="font-family:var(--sans); font-weight:600; color:var(--ink-primary); font-size:10px; display:flex; align-items:center; gap:4px;">
-                <i data-lucide="${iconName}" style="width:10px; height:10px; color:${color};"></i> ${String(r.deal_number)}
-              </span>
-              <span style="font-family:var(--mono); font-weight:700; color:${color}; font-size:10px;">+${amt.toFixed(1)} MW</span>
-            </div>
-            <div style="font-size:7.5px; color:var(--ink-dim); margin-top:1.5px; padding-left:14px; font-weight:500;">Product: ${r.product || ''}</div>
-          </div>`;
-        salesTotalSum += amt;
-      });
-    }
-    const tagSchedule = STATE.schedules.find(s => s.tag_code === tag.tag_code);
+    const netDiff = salesTotalSum - purchasesTotalSum;
+    const netBalanced = Math.abs(netDiff) < 0.1;
 
-
-
-const scheduleId = tagSchedule ? tagSchedule.id : `SCH-AMZ-${tag.id.replace('TAG-AMZ-', '')}`;
-    const scheduleNum = tagSchedule ? tagSchedule.schedule_num : scheduleId;
-
-const scheduleId = __fpg ? __fpg.schedule_number : (tagSchedule ? tagSchedule.id : `SCH-AMZ-${tag.id}`);
-    const scheduleNum = scheduleId;
-
-
-
-
+    // Energy Flow: every tag in this location must net to zero (purchases + sales)
+    const energyFlowMatched = __locGroups.length > 0 && __locGroups.every(g => {
+      const rows = g.rows || [];
+      if (rows.length === 0) return false;                     // unmatched tag -> mismatch
+      const net = rows.reduce((s, r) => s + Number(r.volume || 0), 0);
+      return Math.abs(net) < 0.1;
+    });
