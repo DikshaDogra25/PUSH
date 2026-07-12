@@ -1,41 +1,41 @@
-const locPurchases = STATE.purchaseDeals.filter(p => p.location === activeLoc.name);
-    const purchasesTotalSum = locPurchases.reduce((sum, p) => sum + p.mw, 0);
-    const salesTotalSum = activeLoc.allocA + activeLoc.allocB;
-    const netDiff = salesTotalSum - purchasesTotalSum;
-    const netBalanced = Math.abs(netDiff) < 0.1;
+// BEFORE
+          <i data-lucide="tag" style="width:10px; height:10px; color:var(--green);"></i> ${tag.tag_code}
+        </span>
+        <span style="font-family:var(--mono); font-weight:700; color:var(--green); font-size:10.5px;">${tag.mw.toFixed(1)} MW</span>
 
-    // Check tags matching sale deals for energy flow check
-    const activeLocTags = STATE.tags.filter(t => t.location === activeLoc.name);
-    const tagsTotalSum = activeLocTags.reduce((sum, t) => sum + t.mw, 0);
-    const energyFlowMatched = Math.abs(tagsTotalSum - salesTotalSum) < 0.1;
+// AFTER
+          <i data-lucide="tag" style="width:10px; height:10px; color:var(--amber);"></i> ${tag.tag_code}
+        </span>
+        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${tag.mw.toFixed(1)} MW</span>
 
+// BEFORE
+        const isA = /A\s*$/.test(String(r.product || ''));
+        const color = isA ? 'var(--green)' : 'var(--blue)';
 
-// ---- Audits sourced from FINAL_PLAN (same data as the flow diagram below) ----
-    const activeLocTags = STATE.tags.filter(t => t.location === activeLoc.name);
-    const tagsTotalSum = activeLocTags.reduce((sum, t) => sum + (t.mw || 0), 0);
+// AFTER
+        const isA = /\bA\b/.test(String(r.product || ''));   // "Product A" -> A, else B
+        const color = isA ? 'var(--green)' : 'var(--blue)';
+        // if B still renders amber, --blue is likely unset; hardcode: '#5B8FF9'
 
-    const __fpAudit = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    const __locTagCodes = new Set(activeLocTags.map(t => t.tag_code));
-    const __locGroups = __fpAudit.filter(g => __locTagCodes.has(g.tag_code));
+// BEFORE
+    let demandSalesMatch = true;
+    for (let h = 0; h < 24; h++) {
+      if (Math.abs(activeLoc.profileTotal[h] - (activeLoc.profileA[h] + activeLoc.profileB[h])) > 0.1) {
+        demandSalesMatch = false;
+        break;
+      }
+    }
 
-    let purchasesTotalSum = 0, salesTotalSum = 0;
-    __locGroups.forEach(g => {
-      (g.rows || []).forEach(r => {
-        const v = Number(r.volume || 0);
-        if (r.type === "PURCHASE") purchasesTotalSum += Math.abs(v);
-        else if (r.type === "SALE") salesTotalSum += v;
-      });
-    });
-    purchasesTotalSum = Math.round(purchasesTotalSum * 10) / 10;
-    salesTotalSum = Math.round(salesTotalSum * 10) / 10;
+// AFTER
+    const __hasPurch = __locGroups.some(g => (g.rows || []).some(r => r.type === 'PURCHASE'));
+    const __hasSale  = __locGroups.some(g => (g.rows || []).some(r => r.type === 'SALE'));
 
-    const netDiff = salesTotalSum - purchasesTotalSum;
-    const netBalanced = Math.abs(netDiff) < 0.1;
-
-    // Energy Flow: every tag in this location must net to zero (purchases + sales)
-    const energyFlowMatched = __locGroups.length > 0 && __locGroups.every(g => {
-      const rows = g.rows || [];
-      if (rows.length === 0) return false;                     // unmatched tag -> mismatch
-      const net = rows.reduce((s, r) => s + Number(r.volume || 0), 0);
-      return Math.abs(net) < 0.1;
-    });
+    let demandSalesMatch = __hasPurch && __hasSale;   // missing either leg -> Failed
+    if (demandSalesMatch) {
+      for (let h = 0; h < 24; h++) {
+        if (Math.abs(activeLoc.profileTotal[h] - (activeLoc.profileA[h] + activeLoc.profileB[h])) > 0.1) {
+          demandSalesMatch = false;
+          break;
+        }
+      }
+    }
