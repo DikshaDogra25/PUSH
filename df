@@ -1,49 +1,63 @@
-// BEFORE
-    // 2. Sort locations by total MW volume descending (ordered buckets)
-    const sortedLocations = Object.values(locMap);
+# BEFORE — preview gets only its static defaults
+prev = pathlib.Path(PREVIEW_TEMPLATE).read_text(encoding="utf-8")
+pathlib.Path(PREVIEW_OUT).write_text(prev, encoding="utf-8")
 
-// AFTER
-    // 2. Display in the exact order returned by RESULT_ALLOCATION. No sorting.
-    const __cpOrder = [];
-    if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
-      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
-        const cp = (x.CP || "").trim();
-        if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
-      });
-      (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
-        const cp = (x.CP || "").trim();
-        if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
-      });
-    }
-    const sortedLocations = __cpOrder.length
-      ? __cpOrder.map(function (cp) {
-          return locMap[cp] || { name: cp, totalMW: 0, tags: [] };   // 'All' has no tags
-        })
-      : Object.values(locMap);
+# AFTER — same payloads as the main dashboard
+prev = pathlib.Path(PREVIEW_TEMPLATE).read_text(encoding="utf-8")
 
+# tags: already enriched with hourly + mw = sum(MW1..MW24)
+prev, n1 = re.subn(r'const ORIGINAL_TAGS_DB = \[[\s\S]*?\];',
+                   f'const ORIGINAL_TAGS_DB = {tags_json};', prev, count=1)
+prev, n2 = re.subn(r'const RESULT_ALLOCATION = \{[\s\S]*?\};',
+                   f'const RESULT_ALLOCATION = {pl_json};', prev, count=1)
+if n1 != 1 or n2 != 1:
+    raise RuntimeError("Preview anchors not found (ORIGINAL_TAGS_DB / RESULT_ALLOCATION)")
+
+pathlib.Path(PREVIEW_OUT).write_text(prev, encoding="utf-8")
 
 // BEFORE
-    STATE.tags.forEach(tag => {
-      const loc = sortedLocations.find(l => l.name === tag.location);
-      if (loc.allocB === 0) {
-
-
-
-// AFTER
-    STATE.tags.forEach(tag => {
-      const loc = sortedLocations.find(l => l.name === tag.location);
-      if (!loc) return;                 // tag's location isn't in RESULT_ALLOCATION
-      if (loc.allocB === 0) {
+          loc.totalMW = Math.round((loc.allocA + loc.allocB) * 10) / 10;
+// AFTER  (matches main dashboard line 2619)
+          loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
 
 
 // BEFORE
-    // Auto-select the boundary location where Product B usage begins
-    if (STATE.boundaryLocation && STATE.boundaryLocation !== "None") {
-      STATE.selectedLocName = STATE.boundaryLocation;
-    }
-
+      const locations = Object.values(locMap);
 // AFTER
-    // Auto-select the FIRST source as returned by RESULT_ALLOCATION
-    if (STATE.locations && STATE.locations.length) {
-      STATE.selectedLocName = STATE.locations[0].name;
-    }
+      const __cpOrder = [];
+      if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+        (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+          const cp = (x.CP || "").trim();
+          if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+        });
+        (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+          const cp = (x.CP || "").trim();
+          if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+        });
+      }
+      const locations = __cpOrder.length
+        ? __cpOrder.map(function (cp) {
+            return locMap[cp] || { name: cp, totalMW: 0, tags: [], profileTotal: Array(24).fill(0) };
+          })
+        : Object.values(locMap);
+
+
+// BEFORE (line 392)
+        const tp = getHourlyProfile(tag.mw, tag._curve || "baseload");
+// AFTER
+        const tp = Array.isArray(tag.hourly) ? tag.hourly : getHourlyProfile(tag.mw, tag._curve || "baseload");
+
+// BEFORE (line 530)
+        const tProfile = getHourlyProfile(t.mw, t._curve || "baseload");
+// AFTER
+        const tProfile = Array.isArray(t.hourly) ? t.hourly : getHourlyProfile(t.mw, t._curve || "baseload");
+
+// line 500 — BEFORE
+      document.getElementById("kpi-tag-mw").innerHTML = `${uncommittedVol.toFixed(0)} <span class="subtext">MWh</span>`;
+// AFTER
+      document.getElementById("kpi-tag-mw").innerHTML = `${uncommittedVol.toFixed(0)} <span class="subtext">MW</span>`;
+
+// line 504 — BEFORE
+      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MWh`;
+// AFTER
+      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MW`;
