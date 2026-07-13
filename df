@@ -1,39 +1,25 @@
+// BEFORE (line 2588)
+    // 2. Sort locations by total MW volume descending (ordered buckets)
+    const sortedLocations = Object.values(locMap);
+
 // AFTER
-    const limitMax = STATE.limitA;
-    const __kpiLocs = STATE.locations;
-    let __sumA = 0, __sumB = 0;
-    for (let h = 0; h < 24; h++) {
-      let hourA = 0, hourTot = 0;
-      __kpiLocs.forEach(l => {
-        hourA   += (l.profileA && l.profileA[h]) || 0;
-        hourTot += ((l.profileA && l.profileA[h]) || 0) + ((l.profileB && l.profileB[h]) || 0);
-      });
-      // Product A can never exceed the global cap in any single hour.
-      hourA = Math.min(hourA, limitMax);
-      __sumA += hourA;
-      __sumB += Math.max(0, hourTot - hourA);   // everything above the cap is Product B
-    }
-    const totalA = Math.round((__sumA / 24) * 10) / 10;
-    const totalB = Math.round((__sumB / 24) * 10) / 10;
-    const isAFull = totalA >= limitMax;
-
-
-// BEFORE (in getFilteredOverviewLocations)
+    // 2. Keep ONLY locations present in Location Aggregation (RESULT_ALLOCATION CPs).
+    //    Tags in other locations are excluded from allocation entirely.
     const __allocCPs = getAllocationCPs();
-    const __base = __allocCPs.size ? STATE.locations.filter(loc => __allocCPs.has(loc.name)) : STATE.locations;
-    return  __base.filter(loc => {
+    const sortedLocations = __allocCPs.size
+      ? Object.values(locMap).filter(l => __allocCPs.has(l.name))
+      : Object.values(locMap);
 
-// AFTER — all locations from Unscheduled Tags, no Location Aggregation filter
+// BEFORE (what I wrongly had you do)
     const __base = STATE.locations;
-    return  __base.filter(loc => {
+// AFTER
+    const __base = STATE.locations;   // already CP-filtered by the engine — leave as-is
 
+hourA = Math.min(hourA, limitMax);          // A capped at 150
+__sumB += Math.max(0, hourTot - hourA);     // everything above the cap -> B
 
-<!-- BEFORE (line 2090) -->
-      <div class="dashboard-card" id="card-loc-buckets">
-<!-- AFTER -->
-      <div class="dashboard-card" id="card-loc-buckets" style="height:auto; max-height:620px; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
+// BEFORE (line 3498)
+        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${tag.mw.toFixed(1)} MW</span>
 
-<!-- BEFORE (line 2107) -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block;">
-<!-- AFTER -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:auto; padding-bottom:4px;">
+// AFTER
+        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${(((loc && loc.allocA) || 0) + ((loc && loc.allocB) || 0)).toFixed(1)} MW</span>
