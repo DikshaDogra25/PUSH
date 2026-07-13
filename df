@@ -118,7 +118,12 @@ const KPI_TOTALS = {};
       ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocB || 0), 0) * 10) / 10
       : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw || 0);
     const isAFull = totalA >= limitMax;
-
+// AFTER — values come straight from Python, no calculation here
+    const __kpi = (typeof KPI_TOTALS !== "undefined" && KPI_TOTALS) ? KPI_TOTALS : {};
+    const limitMax = Number(__kpi.cap) || STATE.limitA;
+    const totalA = Number(__kpi.product_a_mw) || 0;
+    const totalB = Number(__kpi.product_b_mw) || 0;
+    const isAFull = totalA >= limitMax;
 
 <!-- AFTER -->
         <div id="date-picker-trigger" style="display: inline-flex; align-items: center; gap: 6px; cursor: default; pointer-events: none; opacity: 0.55; background: transparent; border: none; font-size: 12px; font-weight: 600; color: var(--ink-primary); user-select: none; padding: 4px 0;">
