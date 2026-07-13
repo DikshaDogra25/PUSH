@@ -1,34 +1,23 @@
-// BEFORE (line 3498)
-        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${(((loc && loc.allocA) || 0) + ((loc && loc.allocB) || 0)).toFixed(1)} MW</span>
-
-// AFTER — add this just above `const tagHTML = ...` (line 3493)
-    // Tag total = sum of its 24 hourly MW values
-    let __tagTotal = 0, __foundHours = false;
-    for (let h = 1; h <= 24; h++) {
-      if (tag["MW" + h] !== undefined && tag["MW" + h] !== null) {
-        __tagTotal += Number(tag["MW" + h]) || 0;
-        __foundHours = true;
-      }
-    }
-    if (!__foundHours) {
-      __tagTotal = (typeof getHourlyProfile === "function")
-        ? getHourlyProfile(tag.mw, tag._curve).reduce(function (s, v) { return s + v; }, 0)
-        : (tag.mw || 0);
-    }
-
-// BEFORE (lines ~3771-3774)
-      let __net = 0, __hasRows = false;
-      (g.rows || []).forEach(function (r) { __net += Number(r.volume || 0); __hasRows = true; });
-	  const __balanced = __hasRows && Math.abs(__net) < 0.1;
-      const gStatus = __balanced ? 'PLANNED' : 'IMBALANCE';   // no rows -> IMBALANCE
-      const stColor = __balanced ? 'green' : 'red';
+// BEFORE (lines 3496, 3498)
+          <i data-lucide="tag" style="width:10px; height:10px; color:var(--amber);"></i> ${tag.tag_code}
+        </span>
+        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${__tagTotal.toFixed(1)} MW</span>
 
 // AFTER
-      const gStatus = 'PENDING';
-      const stColor = 'orange';   // same badge colour as PURCHASE
+          <i data-lucide="tag" style="width:10px; height:10px; color:var(--green);"></i> ${tag.tag_code}
+        </span>
+        <span style="font-family:var(--mono); font-weight:700; color:var(--green); font-size:10.5px;">${__tagTotal.toFixed(1)} MW</span>
 
-// BEFORE (in the rows.map, the counterparty cell)
-                  <td>${r.counterparty}</td>
+// BEFORE (in the sale rows loop)
+        const isA = /\bA\b/.test(String(r.product || ''));
+        const color = isA ? 'var(--green)' : 'var(--blue)';
 
 // AFTER
-                  <td>${isPur ? r.counterparty : 'Amazon Energy Services'}</td>
+        const isA = /\bA\b/.test(String(r.product || ''));
+        const color = isA ? 'var(--green)' : 'var(--amber)';
+
+// BEFORE (line 3611)
+                  <strong style="color:var(--cyan); font-family:var(--mono);">${tag.mw.toFixed(1)} MW</strong>
+
+// AFTER
+                  <strong style="color:var(--cyan); font-family:var(--mono);">${__tagTotal.toFixed(1)} MW</strong>
