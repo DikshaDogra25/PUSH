@@ -1,51 +1,124 @@
-def _tag_hourly(tag):
-    """MW1..MW24 -> list of 24 floats. NULL/None/'' -> 0.0"""
-    out = []
-    for h in range(1, 25):
-        v = tag.get(f"MW{h}")
-        try:
-            out.append(0.0 if v is None or v == "" else float(v))
-        except (TypeError, ValueError):
-            out.append(0.0)
-    return out
+PRODUCT_A_CAP = 150.0
 
-# BEFORE
-tags = (result or {}).get("Unschedule Tags") or []
-tags_json = json.dumps(tags, allow_nan=False, ensure_ascii=False)
-new = re.sub(r'const ORIGINAL_TAGS_DB = \[\];', f'const ORIGINAL_TAGS_DB = {tags_json};', new, count=1)
+def _kpi_totals(product_list, cap=PRODUCT_A_CAP):
+    """
+    Returns the Product A / Product B KPI figures, fully computed.
+    A is capped at `cap` in every hour; the overflow lands in B.
+    """
+    pl = product_list or {}
 
-# AFTER
-tags = (result or {}).get("Unschedule Tags") or []
-for t in tags:
-    hrs = _tag_hourly(t)
-    t["hourly"] = hrs                      # real 24h curve for charts
-    t["mw"] = round(sum(hrs), 4)           # TOTAL MW1..MW24  -> AWS2585 = 50 + 50 = 100
-tags_json = json.dumps(tags, allow_nan=False, ensure_ascii=False)
-new = re.sub(r'const ORIGINAL_TAGS_DB = \[\];', f'const ORIGINAL_TAGS_DB = {tags_json};', new, count=1)
+    def hourly_sum(entries):
+        hrs = [0.0] * 24
+        for e in (entries or []):
+            if not isinstance(e, dict):
+                continue
+            cp = (e.get("CP") or "").strip()
+            if cp.lower() == "all":          # skip the aggregate row
+                continue
+            for pt in (e.get("data") or []):
+                try:
+                    h = int(pt.get("HE")) - 1
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= h < 24:
+                    try:
+                        hrs[h] += float(pt.get("values") or 0.0)
+                    except (TypeError, ValueError):
+                        pass
+        return hrs
 
-// BEFORE (top of buildTagWireframeHTML)
-    let __tagTotal = 0, __foundHours = false;
-    for (let h = 1; h <= 24; h++) {
-      if (tag["MW" + h] !== undefined && tag["MW" + h] !== null) {
-        __tagTotal += Number(tag["MW" + h]) || 0;
-        __foundHours = true;
-      }
+    a_raw = hourly_sum(pl.get("ProductA"))
+    b_raw = hourly_sum(pl.get("ProductB"))
+
+    a_hourly, b_hourly = [], []
+    for h in range(24):
+        total = a_raw[h] + b_raw[h]
+        a = min(a_raw[h], cap)               # A never exceeds the cap in any hour
+        b = max(0.0, total - a)              # everything above the cap -> B
+        a_hourly.append(round(a, 4))
+        b_hourly.append(round(b, 4))
+
+    return {
+        "product_a_mw": round(sum(a_hourly) / 24.0, 1),   # average MW across HE1-24
+        "product_b_mw": round(sum(b_hourly) / 24.0, 1),
+        "product_a_hourly": a_hourly,                      # for the KPI sparklines
+        "product_b_hourly": b_hourly,
+        "cap": cap,
     }
-    if (!__foundHours) {
-      __tagTotal = (typeof getHourlyProfile === "function")
-        ? getHourlyProfile(tag.mw, tag._curve).reduce(function (s, v) { return s + v; }, 0)
 
-// AFTER
-    // tag.hourly is the real MW1..MW24 curve from Python; tag.mw is already its total.
-    const __tagTotal = Array.isArray(tag.hourly)
-      ? tag.hourly.reduce(function (s, v) { return s + (Number(v) || 0); }, 0)
-      : (Number(tag.mw) || 0);
 
-// line 2592 area — BEFORE
-      loc.profileTotal = loc.tags.reduce((acc, t) => {
-        const prof = getHourlyProfile(t.mw, t._curve);
-// AFTER
-      loc.profileTotal = loc.tags.reduce((acc, t) => {
-        const prof = Array.isArray(t.hourly) ? t.hourly : getHourlyProfile(t.mw, t._curve);
-        : (tag.mw || 0);
+
+
+PRODUCT_A_CAP = 150.0
+
+def _kpi_totals(product_list, cap=PRODUCT_A_CAP):
+    """
+    Returns the Product A / Product B KPI figures, fully computed.
+    A is capped at `cap` in every hour; the overflow lands in B.
+    """
+    pl = product_list or {}
+
+    def hourly_sum(entries):
+        hrs = [0.0] * 24
+        for e in (entries or []):
+            if not isinstance(e, dict):
+                continue
+            cp = (e.get("CP") or "").strip()
+            if cp.lower() == "all":          # skip the aggregate row
+                continue
+            for pt in (e.get("data") or []):
+                try:
+                    h = int(pt.get("HE")) - 1
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= h < 24:
+                    try:
+                        hrs[h] += float(pt.get("values") or 0.0)
+                    except (TypeError, ValueError):
+                        pass
+        return hrs
+
+    a_raw = hourly_sum(pl.get("ProductA"))
+    b_raw = hourly_sum(pl.get("ProductB"))
+
+    a_hourly, b_hourly = [], []
+    for h in range(24):
+        total = a_raw[h] + b_raw[h]
+        a = min(a_raw[h], cap)               # A never exceeds the cap in any hour
+        b = max(0.0, total - a)              # everything above the cap -> B
+        a_hourly.append(round(a, 4))
+        b_hourly.append(round(b, 4))
+
+    return {
+        "product_a_mw": round(sum(a_hourly) / 24.0, 1),   # average MW across HE1-24
+        "product_b_mw": round(sum(b_hourly) / 24.0, 1),
+        "product_a_hourly": a_hourly,                      # for the KPI sparklines
+        "product_b_hourly": b_hourly,
+        "cap": cap,
     }
+
+
+
+kpi = _kpi_totals((result or {}).get("Location Agrregation & Allocation"))
+kpi_json = json.dumps(kpi, allow_nan=False, ensure_ascii=False)
+new, n = re.subn(r'const KPI_TOTALS = \{\};', f'const KPI_TOTALS = {kpi_json};', new, count=1)
+if n != 1:
+    raise RuntimeError("Anchor 'const KPI_TOTALS = {};' not found in template")
+
+const KPI_TOTALS = {};
+
+// BEFORE (lines 2951-2960)
+    const limitMax = STATE.limitA;
+    const __kpiCPs = getAllocationCPs();
+    const __kpiLocs = STATE.locations.filter(l => __kpiCPs.has(l.name));
+    const totalA = __kpiLocs.length
+      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocA || 0), 0) * 10) / 10
+      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw || 0);
+    const totalB = __kpiLocs.length
+      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocB || 0), 0) * 10) / 10
+      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw || 0);
+    const isAFull = totalA >= limitMax;
+
+
+<!-- AFTER -->
+        <div id="date-picker-trigger" style="display: inline-flex; align-items: center; gap: 6px; cursor: default; pointer-events: none; opacity: 0.55; background: transparent; border: none; font-size: 12px; font-weight: 600; color: var(--ink-primary); user-select: none; padding: 4px 0;">
