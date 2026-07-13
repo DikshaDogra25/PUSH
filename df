@@ -1,29 +1,38 @@
 // BEFORE
-  const TRADE_DATE = "2026-03-05";
-// AFTER
   const TRADE_DATE = (function () {
     const t = (ORIGINAL_TAGS_DB || [])[0] || {};
     const raw = t.ProfileDate || t.profile_date || "";
-    const iso = String(raw).match(/(\d{4})-(\d{2})-(\d{2})/);          // 2026-03-05
+    ...
+  })();
+// AFTER
+  const TRADE_DATE = (function () {
+    const t = (ORIGINAL_TAGS_DB || [])[0] || {};
+    const raw = String(t.profileDate || "");                 // lowercase p, e.g. "03/05/2026"
+    const us = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);     // MM/DD/YYYY
+    if (us) return `${us[3]}-${us[1]}-${us[2]}`;             // -> "2026-03-05"
+    const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
     if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-    const us = String(raw).match(/(\d{2})\/(\d{2})\/(\d{4})/);         // 03/05/2026
-    if (us) return `${us[3]}-${us[1]}-${us[2]}`;
     return "2026-03-05";
   })();
 
-add this right after runAllocationEngine(); in the init block (~line 6249, before renderAll()):
-
-// Show the trade date in the header (nothing else does this on load)
-    const tradeTextEl = document.getElementById("selected-date-text");
+Keep the load-time paint (init block, after runAllocationEngine();)
+const tradeTextEl = document.getElementById("selected-date-text");
     if (tradeTextEl) tradeTextEl.innerText = TRADE_DATE;
 
 // BEFORE
-    const dateLabel = document.getElementById("tags-date-label");
-    if (dateLabel) dateLabel.innerText = `— ${TRADE_DATE}`;
-// AFTER
     const dateLabel = document.getElementById("tags-date-label");
     if (dateLabel) {
       const first = STATE.tags[0] || {};
       const m = String(first.start || "").match(/(\d{4})-(\d{2})-(\d{2})/);   // "2026-03-04 00:00"
       dateLabel.innerText = m ? `— ${m[1]}-${m[2]}-${m[3]}` : "";
+    }
+// AFTER
+    const dateLabel = document.getElementById("tags-date-label");
+    if (dateLabel) dateLabel.innerText = `— ${TRADE_DATE}`;
+
+const dateLabel = document.getElementById("tags-date-label");
+    if (dateLabel) {
+      const raw = String((STATE.tags[0] || {}).profileDate || "");   // "03/05/2026"
+      const us = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      dateLabel.innerText = us ? `— ${us[3]}-${us[1]}-${us[2]}` : "";
     }
