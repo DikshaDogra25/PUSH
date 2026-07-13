@@ -1,129 +1,208 @@
-PRODUCT_A_CAP = 150.0
+"""
+rule_engine.py
+--------------
+Allow-list rule engine.
 
-def _kpi_totals(product_list, cap=PRODUCT_A_CAP):
+Rows whose `Source` matches a rule in ruleset.json are KEPT, annotated with the
+matching `rule_id` and its `product`. Rows matching nothing go to `ruled_out`.
+
+Two special source values in the ruleset are not literal source names:
+
+  * "Other" -> EXPANDED. Its real sources are the quoted names in its
+               description, e.g. "...sources like 'MIDC', 'BPA'" becomes two
+               matchable sources (MIDC, BPA), both carrying Other's id/product.
+
+  * "All"   -> CATCH-ALL. Claims every row that no other rule matched.
+               Always evaluated LAST, regardless of its position in the file,
+               so later specific rules (R13, R14) still get their chance.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional, Union
+
+import pandas as pd
+
+
+# Sources that are placeholders rather than literal values.
+EXPAND_SOURCES = {"other"}      # real sources live in the description
+CATCHALL_SOURCES = {"all"}      # claims everything left over
+
+
+def extract_sources_from_description(description: str) -> List[str]:
+    """Pull quoted source names out of a description.
+
+    Handles:  'MIDC'  |  'MIDC', 'BPA'  |  'MIDC, BPA'  |  "MIDC"
     """
-    Returns the Product A / Product B KPI figures, fully computed.
-    A is capped at `cap` in every hour; the overflow lands in B.
-    """
-    pl = product_list or {}
-
-    def hourly_sum(entries):
-        hrs = [0.0] * 24
-        for e in (entries or []):
-            if not isinstance(e, dict):
-                continue
-            cp = (e.get("CP") or "").strip()
-            if cp.lower() == "all":          # skip the aggregate row
-                continue
-            for pt in (e.get("data") or []):
-                try:
-                    h = int(pt.get("HE")) - 1
-                except (TypeError, ValueError):
-                    continue
-                if 0 <= h < 24:
-                    try:
-                        hrs[h] += float(pt.get("values") or 0.0)
-                    except (TypeError, ValueError):
-                        pass
-        return hrs
-
-    a_raw = hourly_sum(pl.get("ProductA"))
-    b_raw = hourly_sum(pl.get("ProductB"))
-
-    a_hourly, b_hourly = [], []
-    for h in range(24):
-        total = a_raw[h] + b_raw[h]
-        a = min(a_raw[h], cap)               # A never exceeds the cap in any hour
-        b = max(0.0, total - a)              # everything above the cap -> B
-        a_hourly.append(round(a, 4))
-        b_hourly.append(round(b, 4))
-
-    return {
-        "product_a_mw": round(sum(a_hourly) / 24.0, 1),   # average MW across HE1-24
-        "product_b_mw": round(sum(b_hourly) / 24.0, 1),
-        "product_a_hourly": a_hourly,                      # for the KPI sparklines
-        "product_b_hourly": b_hourly,
-        "cap": cap,
-    }
+    names: List[str] = []
+    for token in re.findall(r"['\"]([^'\"]+)['\"]", description or ""):
+        names.extend(part.strip() for part in token.split(",") if part.strip())
+    return names
 
 
+# --------------------------------------------------------------------------- #
+# Data classes
+# --------------------------------------------------------------------------- #
+@dataclass
+class Rule:
+    id: str
+    source: str
+    product: str = ""
+    description: str = ""
+    active: bool = True
+    is_catchall: bool = False
 
 
-PRODUCT_A_CAP = 150.0
+@dataclass
+class RuleSet:
+    rules: List[Rule]
+    source_column: str = "Source"
+    match_mode: str = "case_insensitive"
+    version: str = "0.0"
 
-def _kpi_totals(product_list, cap=PRODUCT_A_CAP):
-    """
-    Returns the Product A / Product B KPI figures, fully computed.
-    A is capped at `cap` in every hour; the overflow lands in B.
-    """
-    pl = product_list or {}
+    @property
+    def active_rules(self) -> List[Rule]:
+        """All active rules, in ruleset order (used for output ordering)."""
+        return [r for r in self.rules if r.active]
 
-    def hourly_sum(entries):
-        hrs = [0.0] * 24
-        for e in (entries or []):
-            if not isinstance(e, dict):
-                continue
-            cp = (e.get("CP") or "").strip()
-            if cp.lower() == "all":          # skip the aggregate row
-                continue
-            for pt in (e.get("data") or []):
-                try:
-                    h = int(pt.get("HE")) - 1
-                except (TypeError, ValueError):
-                    continue
-                if 0 <= h < 24:
-                    try:
-                        hrs[h] += float(pt.get("values") or 0.0)
-                    except (TypeError, ValueError):
-                        pass
-        return hrs
+    @property
+    def matchable_rules(self) -> List[Rule]:
+        """Active rules that match a real source value (excludes the catch-all)."""
+        return [r for r in self.active_rules if not r.is_catchall]
 
-    a_raw = hourly_sum(pl.get("ProductA"))
-    b_raw = hourly_sum(pl.get("ProductB"))
+    @property
+    def catchall_rule(self) -> Optional[Rule]:
+        """The active catch-all rule, if any."""
+        for r in self.active_rules:
+            if r.is_catchall:
+                return r
+        return None
 
-    a_hourly, b_hourly = [], []
-    for h in range(24):
-        total = a_raw[h] + b_raw[h]
-        a = min(a_raw[h], cap)               # A never exceeds the cap in any hour
-        b = max(0.0, total - a)              # everything above the cap -> B
-        a_hourly.append(round(a, 4))
-        b_hourly.append(round(b, 4))
+    @classmethod
+    def from_json(cls, path: Union[str, Path]) -> "RuleSet":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
 
-    return {
-        "product_a_mw": round(sum(a_hourly) / 24.0, 1),   # average MW across HE1-24
-        "product_b_mw": round(sum(b_hourly) / 24.0, 1),
-        "product_a_hourly": a_hourly,                      # for the KPI sparklines
-        "product_b_hourly": b_hourly,
-        "cap": cap,
-    }
+        rules: List[Rule] = []
+        for r in data["rules"]:
+            source = r["source"]
+            key = source.strip().lower()
+            base = dict(
+                id=r["id"],
+                product=r.get("product", ""),
+                description=r.get("description", ""),
+                active=r.get("active", True),
+            )
+
+            if key in CATCHALL_SOURCES:
+                # keep ONE rule, flagged as the catch-all
+                rules.append(Rule(source=source, is_catchall=True, **base))
+
+            elif key in EXPAND_SOURCES:
+                # explode into one rule per quoted source in the description
+                for name in extract_sources_from_description(base["description"]):
+                    rules.append(Rule(source=name, **base))
+
+            else:
+                rules.append(Rule(source=source, **base))
+
+        return cls(
+            rules=rules,
+            source_column=data.get("source_column", "Source"),
+            match_mode=data.get("match_mode", "case_insensitive"),
+            version=data.get("version", "0.0"),
+        )
 
 
+@dataclass
+class RuleResult:
+    """Outcome of applying the ruleset to a DataFrame."""
 
-kpi = _kpi_totals((result or {}).get("Location Agrregation & Allocation"))
-kpi_json = json.dumps(kpi, allow_nan=False, ensure_ascii=False)
-new, n = re.subn(r'const KPI_TOTALS = \{\};', f'const KPI_TOTALS = {kpi_json};', new, count=1)
-if n != 1:
-    raise RuntimeError("Anchor 'const KPI_TOTALS = {};' not found in template")
+    kept: pd.DataFrame        # rows whose source matched a rule (incl. the catch-all)
+    ruled_out: pd.DataFrame   # rows that matched nothing (empty if a catch-all is active)
 
-const KPI_TOTALS = {};
 
-// BEFORE (lines 2951-2960)
-    const limitMax = STATE.limitA;
-    const __kpiCPs = getAllocationCPs();
-    const __kpiLocs = STATE.locations.filter(l => __kpiCPs.has(l.name));
-    const totalA = __kpiLocs.length
-      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocA || 0), 0) * 10) / 10
-      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw || 0);
-    const totalB = __kpiLocs.length
-      ? Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocB || 0), 0) * 10) / 10
-      : (STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw || 0);
-    const isAFull = totalA >= limitMax;
-// AFTER — values come straight from Python, no calculation here
-    const __kpi = (typeof KPI_TOTALS !== "undefined" && KPI_TOTALS) ? KPI_TOTALS : {};
-    const limitMax = Number(__kpi.cap) || STATE.limitA;
-    const totalA = Number(__kpi.product_a_mw) || 0;
-    const totalB = Number(__kpi.product_b_mw) || 0;
-    const isAFull = totalA >= limitMax;
+# --------------------------------------------------------------------------- #
+# Engine
+# --------------------------------------------------------------------------- #
+class RuleEngine:
+    def __init__(self, ruleset: RuleSet) -> None:
+        self.ruleset = ruleset
 
-<!-- AFTER -->
-        <div id="date-picker-trigger" style="display: inline-flex; align-items: center; gap: 6px; cursor: default; pointer-events: none; opacity: 0.55; background: transparent; border: none; font-size: 12px; font-weight: 600; color: var(--ink-primary); user-select: none; padding: 4px 0;">
+    # -- helpers ----------------------------------------------------------- #
+    @staticmethod
+    def _norm(series: pd.Series) -> pd.Series:
+        """Normalise a source column for case-insensitive comparison."""
+        return series.astype("string").str.strip().str.lower()
+
+    def _match_rule_id(self, sources: pd.Series) -> pd.Series:
+        """Return a Series holding the id of the FIRST active rule each value
+        matches, or <NA> if none. The catch-all is applied last."""
+        result = pd.Series(pd.NA, index=sources.index, dtype="string")
+        mode = self.ruleset.match_mode
+
+        if mode == "regex":
+            norm_sources = sources.astype("string").str.strip()
+            for rule in self.ruleset.matchable_rules:
+                unmatched = result.isna()
+                hits = norm_sources.str.fullmatch(
+                    rule.source.strip(), case=False
+                ).fillna(False)
+                result = result.mask(unmatched & hits, rule.id)
+        else:
+            # exact / case_insensitive both reduce to a dict lookup
+            compare = sources if mode == "exact" else self._norm(sources)
+            lookup: dict = {}
+            for r in self.ruleset.matchable_rules:
+                key = r.source if mode == "exact" else r.source.strip().lower()
+                if key not in lookup:          # first rule wins on duplicate sources
+                    lookup[key] = r.id
+            result = compare.map(lookup).astype("string")
+
+        # -- catch-all: claim every row still unmatched ----------------------
+        catchall = self.ruleset.catchall_rule
+        if catchall is not None:
+            result = result.fillna(catchall.id)
+
+        return result
+
+    # -- public API -------------------------------------------------------- #
+    def apply(self, df: pd.DataFrame) -> RuleResult:
+        col = self.ruleset.source_column
+        if col not in df.columns:
+            raise KeyError(
+                f"Source column {col!r} not found. Available columns: {list(df.columns)}"
+            )
+
+        annotated = df.copy()
+
+        if annotated.empty:
+            annotated["rule_id"] = pd.Series(dtype="string")
+            annotated["product"] = pd.Series(dtype="string")
+        else:
+            annotated["rule_id"] = self._match_rule_id(annotated[col])
+            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
+            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
+
+        is_matched = annotated["rule_id"].notna().to_numpy()
+        ruled_out = annotated[~is_matched].reset_index(drop=True)
+
+        # kept rows grouped by rule, in ruleset order (R01 block, then R02, ...).
+        # Ids are de-duplicated: an expanded rule like "Other" produces several
+        # Rule objects sharing one id, and we must not emit its rows twice.
+        ordered_ids: List[str] = []
+        for rule in self.ruleset.active_rules:
+            if rule.id not in ordered_ids:
+                ordered_ids.append(rule.id)
+
+        blocks = [annotated[annotated["rule_id"] == rid] for rid in ordered_ids]
+        kept = (
+            pd.concat(blocks).reset_index(drop=True)
+            if blocks
+            else annotated.iloc[0:0].copy()
+        )
+
+        return RuleResult(kept=kept, ruled_out=ruled_out)
