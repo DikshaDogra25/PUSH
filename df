@@ -1,23 +1,51 @@
-// BEFORE (lines 3496, 3498)
-          <i data-lucide="tag" style="width:10px; height:10px; color:var(--amber);"></i> ${tag.tag_code}
-        </span>
-        <span style="font-family:var(--mono); font-weight:700; color:var(--amber); font-size:10.5px;">${__tagTotal.toFixed(1)} MW</span>
+def _tag_hourly(tag):
+    """MW1..MW24 -> list of 24 floats. NULL/None/'' -> 0.0"""
+    out = []
+    for h in range(1, 25):
+        v = tag.get(f"MW{h}")
+        try:
+            out.append(0.0 if v is None or v == "" else float(v))
+        except (TypeError, ValueError):
+            out.append(0.0)
+    return out
+
+# BEFORE
+tags = (result or {}).get("Unschedule Tags") or []
+tags_json = json.dumps(tags, allow_nan=False, ensure_ascii=False)
+new = re.sub(r'const ORIGINAL_TAGS_DB = \[\];', f'const ORIGINAL_TAGS_DB = {tags_json};', new, count=1)
+
+# AFTER
+tags = (result or {}).get("Unschedule Tags") or []
+for t in tags:
+    hrs = _tag_hourly(t)
+    t["hourly"] = hrs                      # real 24h curve for charts
+    t["mw"] = round(sum(hrs), 4)           # TOTAL MW1..MW24  -> AWS2585 = 50 + 50 = 100
+tags_json = json.dumps(tags, allow_nan=False, ensure_ascii=False)
+new = re.sub(r'const ORIGINAL_TAGS_DB = \[\];', f'const ORIGINAL_TAGS_DB = {tags_json};', new, count=1)
+
+// BEFORE (top of buildTagWireframeHTML)
+    let __tagTotal = 0, __foundHours = false;
+    for (let h = 1; h <= 24; h++) {
+      if (tag["MW" + h] !== undefined && tag["MW" + h] !== null) {
+        __tagTotal += Number(tag["MW" + h]) || 0;
+        __foundHours = true;
+      }
+    }
+    if (!__foundHours) {
+      __tagTotal = (typeof getHourlyProfile === "function")
+        ? getHourlyProfile(tag.mw, tag._curve).reduce(function (s, v) { return s + v; }, 0)
 
 // AFTER
-          <i data-lucide="tag" style="width:10px; height:10px; color:var(--green);"></i> ${tag.tag_code}
-        </span>
-        <span style="font-family:var(--mono); font-weight:700; color:var(--green); font-size:10.5px;">${__tagTotal.toFixed(1)} MW</span>
+    // tag.hourly is the real MW1..MW24 curve from Python; tag.mw is already its total.
+    const __tagTotal = Array.isArray(tag.hourly)
+      ? tag.hourly.reduce(function (s, v) { return s + (Number(v) || 0); }, 0)
+      : (Number(tag.mw) || 0);
 
-// BEFORE (in the sale rows loop)
-        const isA = /\bA\b/.test(String(r.product || ''));
-        const color = isA ? 'var(--green)' : 'var(--blue)';
-
+// line 2592 area — BEFORE
+      loc.profileTotal = loc.tags.reduce((acc, t) => {
+        const prof = getHourlyProfile(t.mw, t._curve);
 // AFTER
-        const isA = /\bA\b/.test(String(r.product || ''));
-        const color = isA ? 'var(--green)' : 'var(--amber)';
-
-// BEFORE (line 3611)
-                  <strong style="color:var(--cyan); font-family:var(--mono);">${tag.mw.toFixed(1)} MW</strong>
-
-// AFTER
-                  <strong style="color:var(--cyan); font-family:var(--mono);">${__tagTotal.toFixed(1)} MW</strong>
+      loc.profileTotal = loc.tags.reduce((acc, t) => {
+        const prof = Array.isArray(t.hourly) ? t.hourly : getHourlyProfile(t.mw, t._curve);
+        : (tag.mw || 0);
+    }
