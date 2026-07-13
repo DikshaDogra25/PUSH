@@ -34,3 +34,16 @@
       const loc = sortedLocations.find(l => l.name === tag.location);
       if (!loc) return;                 // tag's location isn't in RESULT_ALLOCATION
       if (loc.allocB === 0) {
+
+
+// BEFORE
+    // Auto-select the boundary location where Product B usage begins
+    if (STATE.boundaryLocation && STATE.boundaryLocation !== "None") {
+      STATE.selectedLocName = STATE.boundaryLocation;
+    }
+
+// AFTER
+    // Auto-select the FIRST source as returned by RESULT_ALLOCATION
+    if (STATE.locations && STATE.locations.length) {
+      STATE.selectedLocName = STATE.locations[0].name;
+    }
