@@ -34,5 +34,21 @@ const dateLabel = document.getElementById("tags-date-label");
     if (dateLabel) {
       const raw = String((STATE.tags[0] || {}).profileDate || "");   // "03/05/2026"
       const us = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+
+const dateLabel = document.getElementById("tags-date-label");
+    if (dateLabel) {
+      const raw = String((STATE.tags[0] || {}).profileDate || "");   // "03/15/2026"
+      const us = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      dateLabel.innerText = us ? `— ${us[3]}-${us[1]}-${us[2]}` : "";
+    }
+
+    // ADD THIS — paint the header Trade Date from the same profileDate
+    const tradeTextEl = document.getElementById("selected-date-text");
+    if (tradeTextEl) {
+      const raw = String((STATE.tags[0] || {}).profileDate || "");
+      const us = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (us) tradeTextEl.innerText = `${us[3]}-${us[1]}-${us[2]}`;   // -> 2026-03-15
+    }
       dateLabel.innerText = us ? `— ${us[3]}-${us[1]}-${us[2]}` : "";
     }
