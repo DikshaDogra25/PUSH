@@ -1,40 +1,39 @@
-// BEFORE (lines 2951-2959, as you have it now)
-    const limitMax = STATE.limitA;
-    const __kpiLocs = STATE.locations;
-    const totalA = Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocA || 0), 0) * 10) / 10;
-    const totalB = Math.round(__kpiLocs.reduce((sum, l) => sum + (l.allocB || 0), 0) * 10) / 10;
-    const isAFull = totalA >= limitMax;
-
 // AFTER
     const limitMax = STATE.limitA;
-    // Average the CAPPED hourly profiles across all locations. Because the engine caps
-    // Σ profileA[h] <= limitA for every hour, this can never exceed the 150 MW cap.
     const __kpiLocs = STATE.locations;
     let __sumA = 0, __sumB = 0;
     for (let h = 0; h < 24; h++) {
+      let hourA = 0, hourTot = 0;
       __kpiLocs.forEach(l => {
-        __sumA += (l.profileA && l.profileA[h]) || 0;
-        __sumB += (l.profileB && l.profileB[h]) || 0;
+        hourA   += (l.profileA && l.profileA[h]) || 0;
+        hourTot += ((l.profileA && l.profileA[h]) || 0) + ((l.profileB && l.profileB[h]) || 0);
       });
+      // Product A can never exceed the global cap in any single hour.
+      hourA = Math.min(hourA, limitMax);
+      __sumA += hourA;
+      __sumB += Math.max(0, hourTot - hourA);   // everything above the cap is Product B
     }
     const totalA = Math.round((__sumA / 24) * 10) / 10;
     const totalB = Math.round((__sumB / 24) * 10) / 10;
     const isAFull = totalA >= limitMax;
 
+
+// BEFORE (in getFilteredOverviewLocations)
+    const __allocCPs = getAllocationCPs();
+    const __base = __allocCPs.size ? STATE.locations.filter(loc => __allocCPs.has(loc.name)) : STATE.locations;
+    return  __base.filter(loc => {
+
+// AFTER — all locations from Unscheduled Tags, no Location Aggregation filter
+    const __base = STATE.locations;
+    return  __base.filter(loc => {
+
+
 <!-- BEFORE (line 2090) -->
       <div class="dashboard-card" id="card-loc-buckets">
-
 <!-- AFTER -->
-      <div class="dashboard-card" id="card-loc-buckets" style="height: auto; max-height: 620px; min-height: 220px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0;">
+      <div class="dashboard-card" id="card-loc-buckets" style="height:auto; max-height:620px; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
 
 <!-- BEFORE (line 2107) -->
         <div id="card-loc-buckets-tabular" class="table-container" style="display:block;">
-
 <!-- AFTER -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; overflow-y:auto; flex: 1 1 auto; padding-bottom: 4px;">
-
-<!-- BEFORE (line 1871) -->
-      <div class="dashboard-card" style="height: auto; max-height: 520px; min-height: 220px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0;">
-
-<!-- AFTER -->
-      <div class="dashboard-card" style="height: auto; max-height: 760px; min-height: 220px; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0;">
+        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:auto; padding-bottom:4px;">
