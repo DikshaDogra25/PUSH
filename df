@@ -1,57 +1,36 @@
-import json
-import re
-from dataclasses import dataclass
-...
+// BEFORE
+    // 2. Sort locations by total MW volume descending (ordered buckets)
+    const sortedLocations = Object.values(locMap);
 
-# Sources that are placeholders, not literal values: their real sources are
-# the quoted names in the description, e.g. "...like 'MIDC', 'BPA'".
-EXPAND_SOURCES = {"other"}
+// AFTER
+    // 2. Display in the exact order returned by RESULT_ALLOCATION. No sorting.
+    const __cpOrder = [];
+    if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+        const cp = (x.CP || "").trim();
+        if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+      });
+      (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+        const cp = (x.CP || "").trim();
+        if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+      });
+    }
+    const sortedLocations = __cpOrder.length
+      ? __cpOrder.map(function (cp) {
+          return locMap[cp] || { name: cp, totalMW: 0, tags: [] };   // 'All' has no tags
+        })
+      : Object.values(locMap);
 
 
-def extract_sources_from_description(description: str) -> list[str]:
-    """Pull quoted source names out of a description.
-    Handles:  'MIDC'  |  'MIDC', 'BPA'  |  'MIDC, BPA'  |  "MIDC"
-    """
-    names = []
-    for token in re.findall(r"['\"]([^'\"]+)['\"]", description or ""):
-        names.extend(part.strip() for part in token.split(",") if part.strip())
-    return names
+// BEFORE
+    STATE.tags.forEach(tag => {
+      const loc = sortedLocations.find(l => l.name === tag.location);
+      if (loc.allocB === 0) {
 
-before
-rules = [
-            Rule(
-                id=r["id"],
-                source=r["source"],
-                product=r.get("product", ""),
-                description=r.get("description", ""),
-                active=r.get("active", True),
-            )
-            for r in data["rules"]
-        ]
 
-after 
 
-rules = []
-        for r in data["rules"]:
-            base = dict(
-                id=r["id"],
-                product=r.get("product", ""),
-                description=r.get("description", ""),
-                active=r.get("active", True),
-            )
-            if r["source"].strip().lower() in EXPAND_SOURCES:
-                # "Other" -> one Rule per quoted source in its description
-                for name in extract_sources_from_description(base["description"]):
-                    rules.append(Rule(source=name, **base))
-            else:
-                rules.append(Rule(source=r["source"], **base))
-
-before
-blocks = [annotated[annotated["rule_id"] == rule.id]
-                  for rule in self.ruleset.active_rules]
-after
-ordered_ids = []
-        for rule in self.ruleset.active_rules:
-            if rule.id not in ordered_ids:
-                ordered_ids.append(rule.id)
-        blocks = [annotated[annotated["rule_id"] == rid] for rid in ordered_ids]
+// AFTER
+    STATE.tags.forEach(tag => {
+      const loc = sortedLocations.find(l => l.name === tag.location);
+      if (!loc) return;                 // tag's location isn't in RESULT_ALLOCATION
+      if (loc.allocB === 0) {
