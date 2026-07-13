@@ -1,208 +1,57 @@
-"""
-rule_engine.py
---------------
-Allow-list rule engine.
-
-Rows whose `Source` matches a rule in ruleset.json are KEPT, annotated with the
-matching `rule_id` and its `product`. Rows matching nothing go to `ruled_out`.
-
-Two special source values in the ruleset are not literal source names:
-
-  * "Other" -> EXPANDED. Its real sources are the quoted names in its
-               description, e.g. "...sources like 'MIDC', 'BPA'" becomes two
-               matchable sources (MIDC, BPA), both carrying Other's id/product.
-
-  * "All"   -> CATCH-ALL. Claims every row that no other rule matched.
-               Always evaluated LAST, regardless of its position in the file,
-               so later specific rules (R13, R14) still get their chance.
-"""
-
-from __future__ import annotations
-
 import json
 import re
 from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Optional, Union
+...
 
-import pandas as pd
-
-
-# Sources that are placeholders rather than literal values.
-EXPAND_SOURCES = {"other"}      # real sources live in the description
-CATCHALL_SOURCES = {"all"}      # claims everything left over
+# Sources that are placeholders, not literal values: their real sources are
+# the quoted names in the description, e.g. "...like 'MIDC', 'BPA'".
+EXPAND_SOURCES = {"other"}
 
 
-def extract_sources_from_description(description: str) -> List[str]:
+def extract_sources_from_description(description: str) -> list[str]:
     """Pull quoted source names out of a description.
-
     Handles:  'MIDC'  |  'MIDC', 'BPA'  |  'MIDC, BPA'  |  "MIDC"
     """
-    names: List[str] = []
+    names = []
     for token in re.findall(r"['\"]([^'\"]+)['\"]", description or ""):
         names.extend(part.strip() for part in token.split(",") if part.strip())
     return names
 
+before
+rules = [
+            Rule(
+                id=r["id"],
+                source=r["source"],
+                product=r.get("product", ""),
+                description=r.get("description", ""),
+                active=r.get("active", True),
+            )
+            for r in data["rules"]
+        ]
 
-# --------------------------------------------------------------------------- #
-# Data classes
-# --------------------------------------------------------------------------- #
-@dataclass
-class Rule:
-    id: str
-    source: str
-    product: str = ""
-    description: str = ""
-    active: bool = True
-    is_catchall: bool = False
+after 
 
-
-@dataclass
-class RuleSet:
-    rules: List[Rule]
-    source_column: str = "Source"
-    match_mode: str = "case_insensitive"
-    version: str = "0.0"
-
-    @property
-    def active_rules(self) -> List[Rule]:
-        """All active rules, in ruleset order (used for output ordering)."""
-        return [r for r in self.rules if r.active]
-
-    @property
-    def matchable_rules(self) -> List[Rule]:
-        """Active rules that match a real source value (excludes the catch-all)."""
-        return [r for r in self.active_rules if not r.is_catchall]
-
-    @property
-    def catchall_rule(self) -> Optional[Rule]:
-        """The active catch-all rule, if any."""
-        for r in self.active_rules:
-            if r.is_catchall:
-                return r
-        return None
-
-    @classmethod
-    def from_json(cls, path: Union[str, Path]) -> "RuleSet":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-
-        rules: List[Rule] = []
+rules = []
         for r in data["rules"]:
-            source = r["source"]
-            key = source.strip().lower()
             base = dict(
                 id=r["id"],
                 product=r.get("product", ""),
                 description=r.get("description", ""),
                 active=r.get("active", True),
             )
-
-            if key in CATCHALL_SOURCES:
-                # keep ONE rule, flagged as the catch-all
-                rules.append(Rule(source=source, is_catchall=True, **base))
-
-            elif key in EXPAND_SOURCES:
-                # explode into one rule per quoted source in the description
+            if r["source"].strip().lower() in EXPAND_SOURCES:
+                # "Other" -> one Rule per quoted source in its description
                 for name in extract_sources_from_description(base["description"]):
                     rules.append(Rule(source=name, **base))
-
             else:
-                rules.append(Rule(source=source, **base))
+                rules.append(Rule(source=r["source"], **base))
 
-        return cls(
-            rules=rules,
-            source_column=data.get("source_column", "Source"),
-            match_mode=data.get("match_mode", "case_insensitive"),
-            version=data.get("version", "0.0"),
-        )
-
-
-@dataclass
-class RuleResult:
-    """Outcome of applying the ruleset to a DataFrame."""
-
-    kept: pd.DataFrame        # rows whose source matched a rule (incl. the catch-all)
-    ruled_out: pd.DataFrame   # rows that matched nothing (empty if a catch-all is active)
-
-
-# --------------------------------------------------------------------------- #
-# Engine
-# --------------------------------------------------------------------------- #
-class RuleEngine:
-    def __init__(self, ruleset: RuleSet) -> None:
-        self.ruleset = ruleset
-
-    # -- helpers ----------------------------------------------------------- #
-    @staticmethod
-    def _norm(series: pd.Series) -> pd.Series:
-        """Normalise a source column for case-insensitive comparison."""
-        return series.astype("string").str.strip().str.lower()
-
-    def _match_rule_id(self, sources: pd.Series) -> pd.Series:
-        """Return a Series holding the id of the FIRST active rule each value
-        matches, or <NA> if none. The catch-all is applied last."""
-        result = pd.Series(pd.NA, index=sources.index, dtype="string")
-        mode = self.ruleset.match_mode
-
-        if mode == "regex":
-            norm_sources = sources.astype("string").str.strip()
-            for rule in self.ruleset.matchable_rules:
-                unmatched = result.isna()
-                hits = norm_sources.str.fullmatch(
-                    rule.source.strip(), case=False
-                ).fillna(False)
-                result = result.mask(unmatched & hits, rule.id)
-        else:
-            # exact / case_insensitive both reduce to a dict lookup
-            compare = sources if mode == "exact" else self._norm(sources)
-            lookup: dict = {}
-            for r in self.ruleset.matchable_rules:
-                key = r.source if mode == "exact" else r.source.strip().lower()
-                if key not in lookup:          # first rule wins on duplicate sources
-                    lookup[key] = r.id
-            result = compare.map(lookup).astype("string")
-
-        # -- catch-all: claim every row still unmatched ----------------------
-        catchall = self.ruleset.catchall_rule
-        if catchall is not None:
-            result = result.fillna(catchall.id)
-
-        return result
-
-    # -- public API -------------------------------------------------------- #
-    def apply(self, df: pd.DataFrame) -> RuleResult:
-        col = self.ruleset.source_column
-        if col not in df.columns:
-            raise KeyError(
-                f"Source column {col!r} not found. Available columns: {list(df.columns)}"
-            )
-
-        annotated = df.copy()
-
-        if annotated.empty:
-            annotated["rule_id"] = pd.Series(dtype="string")
-            annotated["product"] = pd.Series(dtype="string")
-        else:
-            annotated["rule_id"] = self._match_rule_id(annotated[col])
-            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
-
-        is_matched = annotated["rule_id"].notna().to_numpy()
-        ruled_out = annotated[~is_matched].reset_index(drop=True)
-
-        # kept rows grouped by rule, in ruleset order (R01 block, then R02, ...).
-        # Ids are de-duplicated: an expanded rule like "Other" produces several
-        # Rule objects sharing one id, and we must not emit its rows twice.
-        ordered_ids: List[str] = []
+before
+blocks = [annotated[annotated["rule_id"] == rule.id]
+                  for rule in self.ruleset.active_rules]
+after
+ordered_ids = []
         for rule in self.ruleset.active_rules:
             if rule.id not in ordered_ids:
                 ordered_ids.append(rule.id)
-
         blocks = [annotated[annotated["rule_id"] == rid] for rid in ordered_ids]
-        kept = (
-            pd.concat(blocks).reset_index(drop=True)
-            if blocks
-            else annotated.iloc[0:0].copy()
-        )
-
-        return RuleResult(kept=kept, ruled_out=ruled_out)
