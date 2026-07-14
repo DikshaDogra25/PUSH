@@ -1,7 +1,29 @@
-<!-- BEFORE (line 2107) -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
-<!-- AFTER -->
+<!-- BEFORE -->
         <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
+<!-- AFTER -->
+        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; min-height:0; overflow:auto; padding-bottom:4px;">
 
-<!-- in the table's <thead> -->
-              <tr style="position:sticky; top:0; z-index:2; background:var(--bg-elevated);">
+<!-- BEFORE -->
+          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; table-layout:fixed;">
+<!-- AFTER -->
+          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; min-width:620px;">
+
+<!-- BEFORE -->
+                <th style="width:9%;">Rank</th>
+                <th style="width:31%;">Location</th>
+                <th style="width:10%; text-align:center;">Audit</th>
+                <th style="width:17%;">Product A (MW)</th>
+                <th style="width:17%;">Product B (MW)</th>
+                <th style="width:16%;">Total (MW)</th>
+<!-- AFTER -->
+                <th style="white-space:nowrap;">Rank</th>
+                <th style="white-space:nowrap;">Location</th>
+                <th style="white-space:nowrap; text-align:center;">Audit</th>
+                <th style="white-space:nowrap;">Product A (MW)</th>
+                <th style="white-space:nowrap;">Product B (MW)</th>
+                <th style="white-space:nowrap;">Total (MW)</th>
+
+<!-- BEFORE -->
+      <div class="dashboard-card" id="card-loc-buckets" style="height:auto; max-height:620px; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
+<!-- AFTER -->
+      <div class="dashboard-card" id="card-loc-buckets" style="height:620px; max-height:80vh; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
