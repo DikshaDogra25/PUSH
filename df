@@ -1,28 +1,7 @@
-<!-- BEFORE -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:auto; padding-bottom:4px;">
-<!-- AFTER -->
+<!-- BEFORE (line 2107) -->
         <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
-
-<!-- BEFORE -->
-          <table class="dashboard-table" id="loc-buckets-table">
 <!-- AFTER -->
-          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; table-layout:fixed;">
+        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
 
-<!-- BEFORE -->
-              <tr>
-                <th>Rank</th>
-                <th>Location</th>
-                <th>Audit</th>
-                <th>Product A (MW)</th>
-                <th>Product B (MW)</th>
-                <th>Total (MW)</th>
-              </tr>
-<!-- AFTER -->
-              <tr>
-                <th style="width:9%;">Rank</th>
-                <th style="width:31%;">Location</th>
-                <th style="width:10%; text-align:center;">Audit</th>
-                <th style="width:17%;">Product A (MW)</th>
-                <th style="width:17%;">Product B (MW)</th>
-                <th style="width:16%;">Total (MW)</th>
-              </tr>
+<!-- in the table's <thead> -->
+              <tr style="position:sticky; top:0; z-index:2; background:var(--bg-elevated);">
