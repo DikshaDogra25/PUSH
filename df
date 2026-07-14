@@ -1,12 +1,14 @@
 <!-- BEFORE -->
-              <tr>
-                <th>Rank</th>
-                <th>Location</th>
-                <th>Product A (MW)</th>
-                <th>Product B (MW)</th>
-                <th>Total (MW)</th>
-              </tr>
+        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:auto; padding-bottom:4px;">
 <!-- AFTER -->
+        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
+
+<!-- BEFORE -->
+          <table class="dashboard-table" id="loc-buckets-table">
+<!-- AFTER -->
+          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; table-layout:fixed;">
+
+<!-- BEFORE -->
               <tr>
                 <th>Rank</th>
                 <th>Location</th>
@@ -15,62 +17,12 @@
                 <th>Product B (MW)</th>
                 <th>Total (MW)</th>
               </tr>
-
-
-// BEFORE
-      // Calculate warning state
-      const locPurch = STATE.purchaseDeals.filter(p => p.location === loc.name);
-      const purchSum = locPurch.reduce((sum, p) => sum + p.mw, 0);
-      const hasDiscrepancy = Math.abs(loc.totalMW - purchSum) > 0.1;
-      const isRejected = STATE.locationStates[loc.name] === 'Rejected';
-      const hasWarning = hasDiscrepancy || isRejected;
-
-      let warnIcon = "";
-      if (hasWarning) {
-        const titleText = isRejected ? "Location Rejected" : `Audit Mismatch: Purchases (${purchSum.toFixed(1)} MW) do not match Tags (${loc.totalMW.toFixed(1)} MW)`;
-        warnIcon = `<i data-lucide="alert-triangle" style="color:var(--red); width:13px; height:13px; display:inline-block; vertical-align:middle; margin-left:6px;" title="${titleText}"></i>`;
-      }
-
-
-// AFTER
-      // ---- Audit state: same Net Balance rule as the Location Audits panel ----
-      const __fpAudit = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-      const __locTagCodes = new Set(STATE.tags.filter(t => t.location === loc.name).map(t => t.tag_code));
-      const __locGroups = __fpAudit.filter(g => __locTagCodes.has(g.tag_code));
-
-      let __purchSum = 0, __salesSum = 0;
-      __locGroups.forEach(g => {
-        (g.rows || []).forEach(r => {
-          const v = Number(r.volume || 0);
-          if (r.type === "PURCHASE") __purchSum += Math.abs(v);
-          else if (r.type === "SALE") __salesSum += v;
-        });
-      });
-
-      const isRejected = STATE.locationStates[loc.name] === 'Rejected';
-      const netPassed = !isRejected && Math.abs(__salesSum - __purchSum) < 0.1;
-
-      const auditTitle = isRejected
-        ? "Location Rejected"
-        : (netPassed
-            ? `Net Balance: Passed (Purchases ${__purchSum.toFixed(1)} MW = Sales ${__salesSum.toFixed(1)} MW)`
-            : `Net Balance: ${Math.abs(__salesSum - __purchSum).toFixed(1)} MW ${__salesSum > __purchSum ? 'Long' : 'Short'}`);
-
-      const warnIcon = `<i data-lucide="${netPassed ? 'check-circle' : 'alert-triangle'}"
-            style="color:var(${netPassed ? '--green' : '--red'}); width:14px; height:14px; display:inline-block; vertical-align:middle;"
-            title="${auditTitle}"></i>`;
-
-
-// BEFORE
-            <td style="font-family:var(--brand); font-weight:600; color:var(--ink-primary); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <span>${loc.name}${warnIcon}</span>
-              ${locStateBadge}
-            </td>
-            <td style="font-family:var(--mono); color:var(--green); font-weight:600;">${loc.allocA.toFixed(1)}</td>
-// AFTER
-            <td style="font-family:var(--brand); font-weight:600; color:var(--ink-primary); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <span>${loc.name}</span>
-              ${locStateBadge}
-            </td>
-            <td style="text-align:center;">${warnIcon}</td>
-            <td style="font-family:var(--mono); color:var(--green); font-weight:600;">${loc.allocA.toFixed(1)}</td>
+<!-- AFTER -->
+              <tr>
+                <th style="width:9%;">Rank</th>
+                <th style="width:31%;">Location</th>
+                <th style="width:10%; text-align:center;">Audit</th>
+                <th style="width:17%;">Product A (MW)</th>
+                <th style="width:17%;">Product B (MW)</th>
+                <th style="width:16%;">Total (MW)</th>
+              </tr>
