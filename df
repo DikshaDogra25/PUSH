@@ -1,29 +1,117 @@
-<!-- BEFORE -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding-bottom:4px; margin-left:-24px; margin-right:-24px; width:calc(100% + 48px);">
-<!-- AFTER -->
-        <div id="card-loc-buckets-tabular" class="table-container" style="display:block; flex:1 1 auto; min-height:0; overflow:auto; padding-bottom:4px;">
+// BEFORE
+    tabFilters: { tags: 'All', purchases: 'All', locations: 'All', schedules: 'All' },
+// AFTER
+    tabFilters: { tags: 'All', purchases: 'All', locations: 'All', schedules: 'All' },
+    scheduleStates: {},   // { schedule_number -> 'Accepted' | 'Rejected' }  (absent = Pending)
 
-<!-- BEFORE -->
-          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; table-layout:fixed;">
-<!-- AFTER -->
-          <table class="dashboard-table" id="loc-buckets-table" style="width:100%; min-width:620px;">
+// BEFORE
+  function acceptScheduleRow(schId) {
+    const sch = STATE.schedules.find(s => s.id === schId);
+    if (!sch) return;
+    if (getLocationState(sch.location) === 'Committed') { ... }
+    STATE.locationStates[sch.location] = 'Accepted';
+    STATE.tags.forEach(t => { ... });
+    showToast("Schedule Accepted", `Schedule ${schId} has been accepted.`, "success");
+    renderAll();
+  }
+  // ...same shape for rejectScheduleRow
 
-<!-- BEFORE -->
-                <th style="width:9%;">Rank</th>
-                <th style="width:31%;">Location</th>
-                <th style="width:10%; text-align:center;">Audit</th>
-                <th style="width:17%;">Product A (MW)</th>
-                <th style="width:17%;">Product B (MW)</th>
-                <th style="width:16%;">Total (MW)</th>
-<!-- AFTER -->
-                <th style="white-space:nowrap;">Rank</th>
-                <th style="white-space:nowrap;">Location</th>
-                <th style="white-space:nowrap; text-align:center;">Audit</th>
-                <th style="white-space:nowrap;">Product A (MW)</th>
-                <th style="white-space:nowrap;">Product B (MW)</th>
-                <th style="white-space:nowrap;">Total (MW)</th>
+// AFTER
+  function setScheduleState(schId, state) {
+    if (STATE.committed) {
+      showToast("Already Committed", "The schedule plan is committed and locked.", "info");
+      return;
+    }
+    STATE.scheduleStates[schId] = state;
 
-<!-- BEFORE -->
-      <div class="dashboard-card" id="card-loc-buckets" style="height:auto; max-height:620px; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
-<!-- AFTER -->
-      <div class="dashboard-card" id="card-loc-buckets" style="height:620px; max-height:80vh; min-height:220px; display:flex; flex-direction:column; overflow:hidden; padding-bottom:0;">
+    // keep the tag status in sync with its schedule
+    const g = (FINAL_PLAN || []).find(x => x.schedule_number === schId);
+    if (g) {
+      STATE.tags.forEach(t => {
+        if (t.tag_code === g.tag_code && t.status !== 'Committed') t.status = state;
+      });
+    }
+    showToast(`Schedule ${state}`, `Schedule ${schId} has been ${state.toLowerCase()}.`,
+              state === 'Accepted' ? "success" : "info");
+    renderAll();
+  }
+
+  function acceptScheduleRow(schId) { setScheduleState(schId, 'Accepted'); }
+  function rejectScheduleRow(schId) { setScheduleState(schId, 'Rejected'); }
+
+// BEFORE
+      const gStatus = 'PENDING';
+      const stColor = 'orange';   // same badge colour as PURCHASE
+
+// AFTER
+      const schState = STATE.scheduleStates[g.schedule_number] || 'Pending';
+      const gStatus = schState.toUpperCase();                       // PENDING / ACCEPTED / REJECTED
+      const stColor = schState === 'Accepted' ? 'green'
+                    : schState === 'Rejected' ? 'red'
+                    : 'orange';
+      const actionBtns = (schState !== 'Pending') ? '' : `
+             <div style="display:inline-flex; gap:14px; margin-top:4px;">
+               <button type="button" class="btn-row-action accept" onclick="acceptScheduleRow('${g.schedule_number}')" title="Accept">
+                 <i data-lucide="check" style="width:14px; height:14px;"></i></button>
+               <button type="button" class="btn-row-action reject" onclick="rejectScheduleRow('${g.schedule_number}')" title="Reject">
+                 <i data-lucide="x" style="width:14px; height:14px;"></i></button>
+             </div>`;
+
+// BEFORE
+             <span class="status-badge ${stColor}">${gStatus}</span>
+             <div style="display:inline-flex; gap:14px; margin-top:4px;">
+               <button type="button" class="btn-row-action accept" onclick="acceptScheduleRow('${g.schedule_number}')" title="Accept">
+                 <i data-lucide="check" style="width:14px; height:14px;"></i></button>
+               <button type="button" class="btn-row-action reject" onclick="rejectScheduleRow('${g.schedule_number}')" title="Reject">
+                 <i data-lucide="x" style="width:14px; height:14px;"></i></button>
+             </div>
+// AFTER
+             <span class="status-badge ${stColor}">${gStatus}</span>
+             ${actionBtns}
+
+// BEFORE (line 3835)
+    tbody.innerHTML = FINAL_PLAN.map(function (g, gIdx) {
+// AFTER
+    const __f = STATE.tabFilters.schedules;
+    const __visible = (__f === 'All')
+      ? FINAL_PLAN
+      : FINAL_PLAN.filter(function (g) {
+          const st = STATE.scheduleStates[g.schedule_number] || 'Pending';
+          return STATE.committed ? (__f === 'Committed') : (st === __f);
+        });
+
+    tbody.innerHTML = __visible.map(function (g, gIdx) {
+
+// BEFORE
+    const getSchStatus = (sch) => {
+      const ls = STATE.locationStates[sch.location] || 'Draft';
+      return STATE.committed ? 'Committed' : (ls === 'Accepted' ? 'Accepted' : ls === 'Rejected' ? 'Rejected' : 'Pending');
+    };
+
+    const sPendCount = STATE.schedules.filter(s => getSchStatus(s) === 'Pending').length;
+    const sAccCount = STATE.schedules.filter(s => getSchStatus(s) === 'Accepted').length;
+    const sRejCount = STATE.schedules.filter(s => getSchStatus(s) === 'Rejected').length;
+    const sCommCount = STATE.schedules.filter(s => getSchStatus(s) === 'Committed').length;
+    renderTabFilterPills('schedules-filter-pills', 'schedules', [
+      { key: 'All', label: 'All', count: STATE.schedules.length },
+      { key: 'Pending', label: 'Planned', count: sPendCount },
+      ...
+    ]);
+
+// AFTER
+    const __plan = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
+    const getSchStatus = (g) => STATE.committed
+      ? 'Committed'
+      : (STATE.scheduleStates[g.schedule_number] || 'Pending');
+
+    const sPendCount = __plan.filter(g => getSchStatus(g) === 'Pending').length;
+    const sAccCount  = __plan.filter(g => getSchStatus(g) === 'Accepted').length;
+    const sRejCount  = __plan.filter(g => getSchStatus(g) === 'Rejected').length;
+    const sCommCount = __plan.filter(g => getSchStatus(g) === 'Committed').length;
+    renderTabFilterPills('schedules-filter-pills', 'schedules', [
+      { key: 'All', label: 'All', count: __plan.length },
+      { key: 'Pending', label: 'Pending', count: sPendCount },
+      { key: 'Accepted', label: 'Accepted', count: sAccCount },
+      { key: 'Rejected', label: 'Rejected', count: sRejCount },
+      { key: 'Committed', label: 'Committed', count: sCommCount },
+    ]);
