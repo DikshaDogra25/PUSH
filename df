@@ -1,117 +1,59 @@
 // BEFORE
-    tabFilters: { tags: 'All', purchases: 'All', locations: 'All', schedules: 'All' },
+                  <td style="font-family:var(--mono); font-weight:600;">${String(r.deal_number)}</td>
 // AFTER
-    tabFilters: { tags: 'All', purchases: 'All', locations: 'All', schedules: 'All' },
-    scheduleStates: {},   // { schedule_number -> 'Accepted' | 'Rejected' }  (absent = Pending)
+                  <td style="font-family:var(--mono); font-weight:600; cursor:pointer; text-decoration:underline dotted var(--ink-dim); text-underline-offset:3px;"
+                      onmousemove="showDealTooltip(event, ${gIdx}, ${i})"
+                      onmouseout="hideDealTooltip()">${String(r.deal_number)}</td>
+onmousemove="showDealTooltip(event, '${g.schedule_number}', ${i})"
 
-// BEFORE
-  function acceptScheduleRow(schId) {
-    const sch = STATE.schedules.find(s => s.id === schId);
-    if (!sch) return;
-    if (getLocationState(sch.location) === 'Committed') { ... }
-    STATE.locationStates[sch.location] = 'Accepted';
-    STATE.tags.forEach(t => { ... });
-    showToast("Schedule Accepted", `Schedule ${schId} has been accepted.`, "success");
-    renderAll();
-  }
-  // ...same shape for rejectScheduleRow
+function showDealTooltip(e, schNum, rowIdx) {
+    const tip = document.getElementById("flow-tooltip");
+    if (!tip) return;
+    const g = (FINAL_PLAN || []).find(x => x.schedule_number === schNum);
+    const r = g && (g.rows || [])[rowIdx];
+    if (!r) return;
 
-// AFTER
-  function setScheduleState(schId, state) {
-    if (STATE.committed) {
-      showToast("Already Committed", "The schedule plan is committed and locked.", "info");
-      return;
+    const isPur = r.type === 'PURCHASE';
+    const color = isPur ? 'var(--orange)' : 'var(--green)';
+    const mw = r.mw || [];
+    const vol = Number(r.volume || 0);
+
+    // 24 hourly cells, 12 per row
+    let hours = '';
+    for (let h = 0; h < Math.min(mw.length, 24); h++) {
+      const v = Number(mw[h]) || 0;
+      hours += `<div style="display:flex; flex-direction:column; align-items:center; min-width:38px;">
+                  <span style="font-size:8px; color:var(--ink-dim); font-family:var(--mono);">HE${h + 1}</span>
+                  <span style="font-size:10px; font-family:var(--mono); font-weight:600; color:${v ? color : 'var(--ink-dim)'};">${v.toFixed(1)}</span>
+                </div>`;
     }
-    STATE.scheduleStates[schId] = state;
 
-    // keep the tag status in sync with its schedule
-    const g = (FINAL_PLAN || []).find(x => x.schedule_number === schId);
-    if (g) {
-      STATE.tags.forEach(t => {
-        if (t.tag_code === g.tag_code && t.status !== 'Committed') t.status = state;
-      });
-    }
-    showToast(`Schedule ${state}`, `Schedule ${schId} has been ${state.toLowerCase()}.`,
-              state === 'Accepted' ? "success" : "info");
-    renderAll();
+    tip.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-light); padding-bottom:6px; margin-bottom:8px;">
+        <span style="font-family:var(--mono); font-weight:700; color:var(--ink-primary); font-size:12px;">
+          <span class="status-badge ${isPur ? 'orange' : 'green'}" style="margin-right:6px;">${isPur ? 'Purchase' : 'Sale'}</span>
+          ${String(r.deal_number)}
+        </span>
+        <span style="font-family:var(--mono); font-weight:700; color:${color};">${vol > 0 ? '+' : ''}${vol.toFixed(1)} MW</span>
+      </div>
+      <div style="display:flex; gap:18px; margin-bottom:8px; font-size:10px;">
+        <span><span style="color:var(--ink-dim);">Counterparty:</span> <strong style="color:var(--ink-primary);">${r.counterparty || '-'}</strong></span>
+        <span><span style="color:var(--ink-dim);">Product:</span> <strong style="color:var(--ink-primary);">${r.product || '-'}</strong></span>
+        <span><span style="color:var(--ink-dim);">Tag:</span> <strong style="color:var(--amber);">${g.tag_code}</strong></span>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:4px 6px;">${hours}</div>`;
+
+    tip.style.display = "flex";
+    const pad = 16;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const rect = tip.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth) x = e.clientX - rect.width - pad;
+    if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - pad;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
   }
 
-  function acceptScheduleRow(schId) { setScheduleState(schId, 'Accepted'); }
-  function rejectScheduleRow(schId) { setScheduleState(schId, 'Rejected'); }
-
-// BEFORE
-      const gStatus = 'PENDING';
-      const stColor = 'orange';   // same badge colour as PURCHASE
-
-// AFTER
-      const schState = STATE.scheduleStates[g.schedule_number] || 'Pending';
-      const gStatus = schState.toUpperCase();                       // PENDING / ACCEPTED / REJECTED
-      const stColor = schState === 'Accepted' ? 'green'
-                    : schState === 'Rejected' ? 'red'
-                    : 'orange';
-      const actionBtns = (schState !== 'Pending') ? '' : `
-             <div style="display:inline-flex; gap:14px; margin-top:4px;">
-               <button type="button" class="btn-row-action accept" onclick="acceptScheduleRow('${g.schedule_number}')" title="Accept">
-                 <i data-lucide="check" style="width:14px; height:14px;"></i></button>
-               <button type="button" class="btn-row-action reject" onclick="rejectScheduleRow('${g.schedule_number}')" title="Reject">
-                 <i data-lucide="x" style="width:14px; height:14px;"></i></button>
-             </div>`;
-
-// BEFORE
-             <span class="status-badge ${stColor}">${gStatus}</span>
-             <div style="display:inline-flex; gap:14px; margin-top:4px;">
-               <button type="button" class="btn-row-action accept" onclick="acceptScheduleRow('${g.schedule_number}')" title="Accept">
-                 <i data-lucide="check" style="width:14px; height:14px;"></i></button>
-               <button type="button" class="btn-row-action reject" onclick="rejectScheduleRow('${g.schedule_number}')" title="Reject">
-                 <i data-lucide="x" style="width:14px; height:14px;"></i></button>
-             </div>
-// AFTER
-             <span class="status-badge ${stColor}">${gStatus}</span>
-             ${actionBtns}
-
-// BEFORE (line 3835)
-    tbody.innerHTML = FINAL_PLAN.map(function (g, gIdx) {
-// AFTER
-    const __f = STATE.tabFilters.schedules;
-    const __visible = (__f === 'All')
-      ? FINAL_PLAN
-      : FINAL_PLAN.filter(function (g) {
-          const st = STATE.scheduleStates[g.schedule_number] || 'Pending';
-          return STATE.committed ? (__f === 'Committed') : (st === __f);
-        });
-
-    tbody.innerHTML = __visible.map(function (g, gIdx) {
-
-// BEFORE
-    const getSchStatus = (sch) => {
-      const ls = STATE.locationStates[sch.location] || 'Draft';
-      return STATE.committed ? 'Committed' : (ls === 'Accepted' ? 'Accepted' : ls === 'Rejected' ? 'Rejected' : 'Pending');
-    };
-
-    const sPendCount = STATE.schedules.filter(s => getSchStatus(s) === 'Pending').length;
-    const sAccCount = STATE.schedules.filter(s => getSchStatus(s) === 'Accepted').length;
-    const sRejCount = STATE.schedules.filter(s => getSchStatus(s) === 'Rejected').length;
-    const sCommCount = STATE.schedules.filter(s => getSchStatus(s) === 'Committed').length;
-    renderTabFilterPills('schedules-filter-pills', 'schedules', [
-      { key: 'All', label: 'All', count: STATE.schedules.length },
-      { key: 'Pending', label: 'Planned', count: sPendCount },
-      ...
-    ]);
-
-// AFTER
-    const __plan = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    const getSchStatus = (g) => STATE.committed
-      ? 'Committed'
-      : (STATE.scheduleStates[g.schedule_number] || 'Pending');
-
-    const sPendCount = __plan.filter(g => getSchStatus(g) === 'Pending').length;
-    const sAccCount  = __plan.filter(g => getSchStatus(g) === 'Accepted').length;
-    const sRejCount  = __plan.filter(g => getSchStatus(g) === 'Rejected').length;
-    const sCommCount = __plan.filter(g => getSchStatus(g) === 'Committed').length;
-    renderTabFilterPills('schedules-filter-pills', 'schedules', [
-      { key: 'All', label: 'All', count: __plan.length },
-      { key: 'Pending', label: 'Pending', count: sPendCount },
-      { key: 'Accepted', label: 'Accepted', count: sAccCount },
-      { key: 'Rejected', label: 'Rejected', count: sRejCount },
-      { key: 'Committed', label: 'Committed', count: sCommCount },
-    ]);
+  function hideDealTooltip() {
+    const tip = document.getElementById("flow-tooltip");
+    if (tip) tip.style.display = "none";
+  }
