@@ -1,3 +1,12 @@
-const l = STATE.locations.find(x => x.name === 'FURRY.CREEK');
-console.log('Source_Temp:', JSON.stringify(l.Source_Temp));
-console.log('tag sources:', [...new Set(STATE.tags.map(t => JSON.stringify(t.source)))]);
+from datetime import datetime, timedelta
+
+def parse_date(s):
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Unrecognized date format: {s!r}")
+
+sale_date  = parse_date(item["ProfileDate"]) - timedelta(days=1)
+trade_date = parse_date(item["ProfileDate"]) - timedelta(days=2)
