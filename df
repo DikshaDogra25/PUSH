@@ -1,12 +1,31 @@
-from datetime import datetime, timedelta
+// Deal Number cell -> find the matching purchase/sale record, reuse showFlowTooltip
+  function showRowDealTooltip(e, dealNumber, rowType) {
+    const dn = String(dealNumber);
+    if (rowType === 'PURCHASE') {
+      const p = STATE.purchaseDeals.find(x => String(x.deal_num) === dn);
+      if (p) return showFlowTooltip(e, 'PurchaseDeal', p.id, p.location);
+    } else if (rowType === 'SALE') {
+      const s = STATE.saleDeals.find(x => String(x.deal_num) === dn);
+      if (s) return showFlowTooltip(e, 'SaleDeal', s.id, s.location);
+    }
+  }
 
-def parse_date(s):
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    raise ValueError(f"Unrecognized date format: {s!r}")
+  // Tag Code cell -> find the tag by code, reuse showFlowTooltip
+  function showRowTagTooltip(e, tagCode) {
+    const t = STATE.tags.find(x => x.tag_code === tagCode);
+    if (t) return showFlowTooltip(e, 'Tag', t.id, t.location);
+  }
 
-sale_date  = parse_date(item["ProfileDate"]) - timedelta(days=1)
-trade_date = parse_date(item["ProfileDate"]) - timedelta(days=2)
+// BEFORE
+                  <td style="font-family:var(--mono); font-weight:600;">${String(r.deal_number)}</td>
+// AFTER
+                  <td style="font-family:var(--mono); font-weight:600; cursor:pointer;"
+                      onmousemove="showRowDealTooltip(event, '${String(r.deal_number)}', '${r.type}')"
+                      onmouseout="hideFlowTooltip()">${String(r.deal_number)}</td>
+
+// BEFORE
+         <td rowspan="${N}" style="font-family:var(--mono); color:var(--amber); vertical-align:middle;">${g.tag_code}</td>
+// AFTER
+         <td rowspan="${N}" style="font-family:var(--mono); color:var(--amber); vertical-align:middle; cursor:pointer;"
+             onmousemove="showRowTagTooltip(event, '${g.tag_code}')"
+             onmouseout="hideFlowTooltip()">${g.tag_code}</td>
