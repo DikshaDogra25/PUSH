@@ -1,42 +1,51 @@
-Subject: Meeting Minutes – Agent Registry & Brookfield Platform Updates
+EXPAND_SOURCES = {"other", "prp and grant", "bpa acs", "tacoma acs"}
 
-Hi all,
+@dataclass
+class Rule:
+    id: str
+    source: str
+    product: str = ""
+    description: str = ""
+    active: bool = True
+    group: str = ""          # display name = the ruleset key, e.g. "BPA ACS"
 
-Please find below the minutes from our recent meeting.
+if r["source"].strip().lower() in EXPAND_SOURCES:
+                # "Other" -> one Rule per quoted source in its description
+                for name in RuleSet.extract_sources_from_description(base["description"]):
+                    rules.append(Rule(source=name, **base))
+            else:
+                rules.append(Rule(source=r["source"], **base))
 
-Attendees: Navjot, Ravi, Gurjeet (and team)
+key = r["source"]                        # ruleset key = display group
+            if key.strip().lower() in EXPAND_SOURCES:
+                # group key -> one Rule per quoted source; keep key as the group label
+                for name in RuleSet.extract_sources_from_description(base["description"]):
+                    rules.append(Rule(source=name, group=key, **base))
+            else:
+                rules.append(Rule(source=key, group=key, **base))
 
-DISCUSSION POINTS
 
-1. Brookfield MVPs
-- Navjot shared updates on the MVPs scheduled for Brookfield.
+else:
+            annotated["rule_id"] = self._match_rule_id(annotated[col])
+            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
+            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
 
-2. Agent Registry
-- Gurjeet gave a walk-through of the Agent Registry.
-- Ravi suggested keeping the registry separate.
-- Agreed to maintain two repos: one for Brookfield and one for the platform.
-- Open question: How do we plan to release Brookfield as a separate package?
 
-3. Use Case 2.14
-- To be discussed in a separate, dedicated meeting.
+else:
+            annotated["rule_id"] = self._match_rule_id(annotated[col])
+            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
+            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
 
-4. MCP Tools
-- Agreed to limit the scope of MCP tools.
+            # keep the ACTUAL matched source, then relabel Source with the group key
+            annotated["Source_Temp"] = annotated[col]
+            group_lookup = {r.id: r.group for r in self.ruleset.active_rules}
+            gnames = annotated["rule_id"].map(group_lookup)
+            annotated[col] = gnames.where(gnames.notna(), annotated[col]).astype("string")
 
-5. A2A (Agent-to-Agent)
-- The platform team is currently working on this.
 
-6. Platform Dashboard Enhancements
-- Add a "Design / Approved / Implemented" status section.
-- Add a technology stack section.
+annotated["rule_id"] = pd.Series(dtype="string")
+            annotated["product"] = pd.Series(dtype="string")
 
-ACTION ITEMS
-- Ravi: Review the Agent Registry and complete the platform repo.
-- Team: Schedule a separate meeting for use case 2.14.
-- Platform team: Continue work on A2A.
-- Clarify the approach for releasing Brookfield as a separate package.
-
-Please let me know if I've missed or misrepresented anything.
-
-Thanks,
-[Your name]
+annotated["rule_id"] = pd.Series(dtype="string")
+            annotated["product"] = pd.Series(dtype="string")
+            annotated["Source_Temp"] = pd.Series(dtype="string")
