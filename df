@@ -1,51 +1,21 @@
-EXPAND_SOURCES = {"other", "prp and grant", "bpa acs", "tacoma acs"}
-
 @dataclass
-class Rule:
-    id: str
-    source: str
-    product: str = ""
-    description: str = ""
-    active: bool = True
-    group: str = ""          # display name = the ruleset key, e.g. "BPA ACS"
+class RuleResult:
+    kept: pd.DataFrame            # aggregated: Source = group key (e.g. "BPA ACS")
+    kept_detailed: pd.DataFrame   # ungrouped: Source = actual source (e.g. "BPAPOWER")
+    ruled_out: pd.DataFrame
 
-if r["source"].strip().lower() in EXPAND_SOURCES:
-                # "Other" -> one Rule per quoted source in its description
-                for name in RuleSet.extract_sources_from_description(base["description"]):
-                    rules.append(Rule(source=name, **base))
-            else:
-                rules.append(Rule(source=r["source"], **base))
+blocks = [annotated[annotated["rule_id"] == rid] for rid in ordered_ids]
+        kept = (pd.concat(blocks).reset_index(drop=True)
+                if blocks else annotated.iloc[0:0].copy())
 
-key = r["source"]                        # ruleset key = display group
-            if key.strip().lower() in EXPAND_SOURCES:
-                # group key -> one Rule per quoted source; keep key as the group label
-                for name in RuleSet.extract_sources_from_description(base["description"]):
-                    rules.append(Rule(source=name, group=key, **base))
-            else:
-                rules.append(Rule(source=key, group=key, **base))
+        return RuleResult(kept=kept, ruled_out=ruled_out)
 
+blocks = [annotated[annotated["rule_id"] == rid] for rid in ordered_ids]
+        kept = (pd.concat(blocks).reset_index(drop=True)
+                if blocks else annotated.iloc[0:0].copy())
 
-else:
-            annotated["rule_id"] = self._match_rule_id(annotated[col])
-            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
+        # ungrouped view: same rows, Source shows the actual matched value
+        kept_detailed = kept.copy()
+        kept_detailed[col] = kept_detailed["Source_Temp"]
 
-
-else:
-            annotated["rule_id"] = self._match_rule_id(annotated[col])
-            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
-
-            # keep the ACTUAL matched source, then relabel Source with the group key
-            annotated["Source_Temp"] = annotated[col]
-            group_lookup = {r.id: r.group for r in self.ruleset.active_rules}
-            gnames = annotated["rule_id"].map(group_lookup)
-            annotated[col] = gnames.where(gnames.notna(), annotated[col]).astype("string")
-
-
-annotated["rule_id"] = pd.Series(dtype="string")
-            annotated["product"] = pd.Series(dtype="string")
-
-annotated["rule_id"] = pd.Series(dtype="string")
-            annotated["product"] = pd.Series(dtype="string")
-            annotated["Source_Temp"] = pd.Series(dtype="string")
+        return RuleResult(kept=kept, kept_detailed=kept_detailed, ruled_out=ruled_out)
