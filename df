@@ -1,18 +1,29 @@
 // BEFORE
-    const locTags = STATE.tags.filter(t => t.location === loc.name);
+(RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+  const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
+});
+(RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+  const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
+});
 
-// AFTER
-    // Source_Temp (comma-separated) lists the actual sources this row aggregates.
-    // Fall back to the row's own name when it isn't provided.
-    const __srcSet = new Set(
-      String(loc.Source_Temp || loc.name)
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean)
-    );
+// AFTER — also stash Source_Temp on the merged entry
+(RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+  const cp = (x.CP || "").trim();
+  const e = (byCP[cp] = byCP[cp] || {});
+  e.A = __resAllocToArr(x);
+  if (x.Source_Temp) e.Source_Temp = x.Source_Temp;
+});
+(RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+  const cp = (x.CP || "").trim();
+  const e = (byCP[cp] = byCP[cp] || {});
+  e.B = __resAllocToArr(x);
+  if (x.Source_Temp) e.Source_Temp = x.Source_Temp;
+});
+
+// BEFORE
     const locTags = STATE.tags.filter(t => __srcSet.has(t.location));
 
-
-applyResultAllocationOverride
-// add alongside the profileA/profileB assignments
-    loc.Source_Temp = (cp && cp.Source_Temp) || loc.Source_Temp || loc.name;
+// AFTER
+    const locTags = STATE.tags.filter(t => __srcSet.has(String(t.location || "").trim()));
+STATE.locations.find(l => l.name === "All").Source_Temp
+STATE.locations.find(l => l.name === "All").Source_TempSTATE.locations.find(l => l.name === "All").Source_Temp
