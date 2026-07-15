@@ -9,6 +9,11 @@
     );
     const locTags = STATE.tags.filter(t => __srcSet.has(String(t.source || "").trim()));
 
-const l = STATE.locations.find(x => x.name === 'FURRY.CREEK');
-console.log('Source_Temp:', JSON.stringify(l.Source_Temp));
-console.log('tag sources:', [...new Set(STATE.tags.map(t => JSON.stringify(t.source)))]);
+temps = list(dict.fromkeys(
+    t.strip() for t in group.pop("Source_Temp") if t.strip()
+))
+aggregated = {
+    "CP": group["CP"],
+    "Product": group["Product"],
+    "Source_Temp": ",".join(temps),
+}
