@@ -1,39 +1,12 @@
-// A) the raw payload for these two rows — I want to see the exact Source_Temp value
-RESULT_ALLOCATION.ProductA.filter(x => x.CP === 'PRP and Grant' || x.CP === 'All')
-                          .map(x => ({ CP: x.CP, Source_Temp: x.Source_Temp }))
-
-// B) what actually landed on STATE.locations after the build
-STATE.locations.filter(l => l.name === 'PRP and Grant' || l.name === 'All')
-               .map(l => ({ name: l.name, Source_Temp: l.Source_Temp }))
-
-// C) the exact tag.location strings, quoted so trailing spaces show
-[...new Set(STATE.tags.map(t => JSON.stringify(t.location)))]
-
-
 // BEFORE
-  (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
-    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
-  });
-  (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
-    const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
-  });
-// AFTER
-  (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
-    const cp = (x.CP || "").trim();
-    const e = (byCP[cp] = byCP[cp] || {});
-    e.A = __resAllocToArr(x);
-    if (x.Source_Temp != null) e.Source_Temp = x.Source_Temp;
-  });
-  (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
-    const cp = (x.CP || "").trim();
-    const e = (byCP[cp] = byCP[cp] || {});
-    e.B = __resAllocToArr(x);
-    if (x.Source_Temp != null) e.Source_Temp = x.Source_Temp;
-  });
+    const locTags = STATE.tags.filter(t => t.location === loc.name);
 
-
-// BEFORE
-    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
 // AFTER
-    loc.Source_Temp = (cp.Source_Temp != null) ? cp.Source_Temp : loc.name;   // real sources for this row
-    const A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
+    // Match tag.source against the comma-separated Source_Temp for this row
+    const __srcSet = new Set(
+      String(loc.Source_Temp || loc.name)
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean)
+    );
+    const locTags = STATE.tags.filter(t => __srcSet.has(String(t.source || "").trim()));
