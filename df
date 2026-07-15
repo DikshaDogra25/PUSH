@@ -1,49 +1,18 @@
-def ConvertModelData(tags):
-    groups = defaultdict(
-        lambda: {
-            "Product": "",
-            "CP": "",
-            "count": 0,
-            "Source_Temp": [],          # actual sources aggregated into this group
-        }
-    )
+// BEFORE
+    const locTags = STATE.tags.filter(t => t.location === loc.name);
 
-    for tag in tags:
-        source = tag.get("Source", "").strip()
-        product = tag.get("product", "").strip() if tag.get("product", "All") else "All"
-        source_temp = tag.get("Source_Temp", "").strip()
-        key = (source)
+// AFTER
+    // Source_Temp (comma-separated) lists the actual sources this row aggregates.
+    // Fall back to the row's own name when it isn't provided.
+    const __srcSet = new Set(
+      String(loc.Source_Temp || loc.name)
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean)
+    );
+    const locTags = STATE.tags.filter(t => __srcSet.has(t.location));
 
-        groups[key]["CP"] = source
-        groups[key]["Product"] = product
-        groups[key]["count"] += 1
-        if source_temp:
-            groups[key]["Source_Temp"].append(source_temp)
-        for he in range(1, 25):
-            mw_key = f"MW{he}"
-            value = tag.get(mw_key)
-            value = float(value) if value not in (None, "") else 0.0
-            value = 0.0 if math.isnan(value) else value
-            groups[key][mw_key] = groups[key].get(mw_key, 0.0) + value
 
-    resultAggregate = []
-
-    for group in groups.values():
-        group.pop("count")
-        temps = list(dict.fromkeys(group.pop("Source_Temp")))   # dedupe, keep order
-        aggregated = {
-            "CP": group["CP"],
-            "Product": group["Product"],
-            "Source_Temp": ",".join(temps),
-        }
-        for he in range(1, 25):
-            mw_key = f"MW{he}"
-            aggregated[he] = round(group.get(mw_key, 0.0), 4)
-        resultAggregate.append(aggregated)
-
-    return resultAggregate
-
-product_a = {"CP": row["CP"], "Product": row["Product"],
-                     "Source_Temp": row.get("Source_Temp", ""), "data": []}
-        product_b = {"CP": row["CP"], "Product": row["Product"],
-                     "Source_Temp": row.get("Source_Temp", ""), "data": []}
+applyResultAllocationOverride
+// add alongside the profileA/profileB assignments
+    loc.Source_Temp = (cp && cp.Source_Temp) || loc.Source_Temp || loc.name;
