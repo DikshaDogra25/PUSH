@@ -1,21 +1,21 @@
-// BEFORE
-         <td rowspan="${N}" style="font-family:var(--mono); color:var(--amber); vertical-align:middle;">${g.tag_code}</td>
-// AFTER
-         <td rowspan="${N}" style="font-family:var(--mono); color:var(--amber); vertical-align:middle; cursor:pointer;"
-             onmousemove="showScheduleTagTooltip(event, '${g.tag_code}')"
-             onmouseout="hideScheduleTagTooltip()">${g.tag_code}</td>
+// BEFORE (in showScheduleTagTooltip, ~line 2894)
+    const loc = STATE.locations.find(l => l.name === tag.location);
+    const proportion = (loc && loc.totalMW > 0) ? (tag.mw / loc.totalMW) : 0;
+    const tagAllocA = loc ? Math.round(loc.allocA * proportion * 10) / 10 : 0;
+    const tagAllocB = loc ? Math.round(loc.allocB * proportion * 10) / 10 : 0;
+
+// AFTER — Product A/B = this tag's actual SALE volumes from the plan
+    const __g = (FINAL_PLAN || []).find(x => x.tag_code === tagCode);
+    let tagAllocA = 0, tagAllocB = 0;
+    ((__g && __g.rows) || []).forEach(r => {
+      if (r.type !== 'SALE') return;
+      if (/\bA\b/.test(String(r.product || ''))) tagAllocA += Number(r.volume || 0);
+      else tagAllocB += Number(r.volume || 0);
+    });
+    tagAllocA = Math.round(tagAllocA * 10) / 10;
+    tagAllocB = Math.round(tagAllocB * 10) / 10;
 
 // BEFORE
-                  <td style="font-family:var(--mono); font-weight:600;">${String(r.deal_number)}</td>
-// AFTER
-                  <td style="font-family:var(--mono); font-weight:600; cursor:pointer;"
-                      onmousemove="showRowDealTooltip(event, '${String(r.deal_number)}', '${r.type}')"
-                      onmouseout="hideFlowTooltip()">${String(r.deal_number)}</td>
-
-// BEFORE
-    } else if (type === "SaleDeal") {
-      const deal = STATE.saleDeals.find(s => s.id === id);
-      if (!deal) return;
       const loc = STATE.locations.find(l => l.name === locName);
       if (!loc) return;
       const vol = id === "SAL-AMZ-A" ? loc.allocA : loc.allocB;
@@ -23,15 +23,21 @@
       const color = id === "SAL-AMZ-A" ? "var(--green)" : "var(--blue)";
       const prodText = id === "SAL-AMZ-A" ? "ACS Energy" : "Carbon Free";
       const prodName = id === "SAL-AMZ-A" ? "Sale Product A" : "Sale Product B";
+      const badgeClass = id === "SAL-AMZ-A" ? "green" : "blue";
 
 
-// AFTER
-    } else if (type === "SaleDeal") {
-      const deal = STATE.saleDeals.find(s => s.id === id);
-      if (!deal) return;
-      const isA = /\bA\b/.test(String(deal.product || ''));       // "Product A" vs "Product B"
+// AFTER — A/B comes from the sale deal's own product
+      const isA = /\bA\b/.test(String(deal.product || ''));
       const vol = Number(deal.mw || 0);
-      const profile = getHourlyProfile(Math.abs(vol), (STATE.tags.find(t => t.tag_code === deal.tag_code) || {})._curve || 'baseload');
+      const __tg = STATE.tags.find(t => t.tag_code === deal.tag_code) || { _curve: 'baseload' };
+      const profile = getHourlyProfile(Math.abs(vol), __tg._curve || 'baseload');
       const color = isA ? "var(--green)" : "var(--blue)";
       const prodText = deal.product || (isA ? "Sale Product A" : "Sale Product B");
       const prodName = isA ? "Sale Product A" : "Sale Product B";
+      const badgeClass = isA ? "green" : "blue";
+
+
+// BEFORE (line 5485)
+      const tag = STATE.tags.find(t => t.id === purch.tag_id) || { _curve: 'baseload', sink: "AMAZON_SINK", product: "A", tag_code: "N/A" };
+// AFTER
+      const tag = STATE.tags.find(t => t.tag_code === (purch.tag_code || purch.tag_id)) || { _curve: 'baseload', shape: 'baseload', sink: "AMAZON_SINK", product: "A", tag_code: "N/A" };
