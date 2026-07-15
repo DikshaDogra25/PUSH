@@ -1,3 +1,6 @@
+// this is what the override actually reads — it's undefined:
+(function(){ const b={}; (RESULT_ALLOCATION.ProductA||[]).forEach(x=>{const c=(x.CP||'').trim();(b[c]=b[c]||{}).A=1;}); return b['PRP and Grant']; })()
+
 // BEFORE
 (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
   const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).A = __resAllocToArr(x);
@@ -6,24 +9,16 @@
   const cp = (x.CP || "").trim(); (byCP[cp] = byCP[cp] || {}).B = __resAllocToArr(x);
 });
 
-// AFTER — also stash Source_Temp on the merged entry
+// AFTER
 (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
   const cp = (x.CP || "").trim();
   const e = (byCP[cp] = byCP[cp] || {});
   e.A = __resAllocToArr(x);
-  if (x.Source_Temp) e.Source_Temp = x.Source_Temp;
+  if (x.Source_Temp != null) e.Source_Temp = x.Source_Temp;
 });
 (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
   const cp = (x.CP || "").trim();
   const e = (byCP[cp] = byCP[cp] || {});
   e.B = __resAllocToArr(x);
-  if (x.Source_Temp) e.Source_Temp = x.Source_Temp;
+  if (x.Source_Temp != null) e.Source_Temp = x.Source_Temp;
 });
-
-// BEFORE
-    const locTags = STATE.tags.filter(t => __srcSet.has(t.location));
-
-// AFTER
-    const locTags = STATE.tags.filter(t => __srcSet.has(String(t.location || "").trim()));
-STATE.locations.find(l => l.name === "All").Source_Temp
-STATE.locations.find(l => l.name === "All").Source_TempSTATE.locations.find(l => l.name === "All").Source_Temp
