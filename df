@@ -1,12 +1,37 @@
+function tagsForLoc(loc) {
+  const set = new Set(String((loc && loc.Source_Temp) || (loc && loc.name) || "")
+    .split(",").map(s => s.trim()).filter(Boolean));
+  return STATE.tags.filter(t => set.has(String(t.source || "").trim()));
+}
+// for the accept/reject sites that only have a name string:
+function tagsForLocName(locName) {
+  const loc = STATE.locations.find(l => l.name === locName);
+  return loc ? tagsForLoc(loc) : [];
+}
+
 // BEFORE
     const locTags = STATE.tags.filter(t => t.location === loc.name);
-
 // AFTER
-    // Match tag.source against the comma-separated Source_Temp for this row
-    const __srcSet = new Set(
-      String(loc.Source_Temp || loc.name)
-        .split(",")
-        .map(s => s.trim())
-        .filter(Boolean)
-    );
-    const locTags = STATE.tags.filter(t => __srcSet.has(String(t.source || "").trim()));
+    const locTags = tagsForLoc(loc);
+
+// BEFORE
+      const tagCount = STATE.tags.filter(t => t.location === loc.name).length;
+// AFTER
+      const tagCount = tagsForLoc(loc).length;
+
+// BEFORE
+    ...STATE.tags.filter(t => t.location === loc.name)...
+// AFTER
+    ...tagsForLoc(loc)...
+
+// BEFORE
+          if (t.location === loc.name) {
+
+// BEFORE
+      if (t.location === locName && t.status !== 'Committed') {
+// AFTER
+      const __ok = new Set(tagsForLocName(locName));
+      // inside loop:
+      if (__ok.has(t) && t.status !== 'Committed') {
+// AFTER (only if this loop is about the selected location's tags)
+          if (tagsForLoc(loc).some(x => x === t)) {
