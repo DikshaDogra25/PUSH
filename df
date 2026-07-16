@@ -1,45 +1,6 @@
-// OLD
-      const tr = document.createElement("tr");
-      tr.className = "clickable";
-      tr.onclick = () => openDrawer("Tag", t.id);
-      tr.onmousemove = (e) => showFlowTooltip(e, "Tag", t.id, t.location);   // row-wide — fires on every column
-      tr.onmouseout = () => hideFlowTooltip();
-      tr.innerHTML = `
-        <td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${t.tag_code}</td>
-        <td style="font-family:var(--mono);">${t.schedule_num.replace(/^P-/, '')}</td>
-        <td>${t.source} / ${t.sink}</td>
-        <td>${t.por} / ${t.pod}</td>
-        <td>${t.cpse}</td>
-        <td style="font-family:var(--mono); font-weight:600;">${t.mw}</td>
-        <td><span style="font-family:var(--mono); font-size:10px; color:var(--ink-secondary); font-weight:600;">${pathStr}</span></td>
-        <td>${statusBadge}</td>
-        <td>
-          <i data-lucide="eye" style="color:var(--ink-dim); width:15px; height:15px;"></i>
-        </td>
-      `;
-      tbody.appendChild(tr);
-
-// NEW
-      const tr = document.createElement("tr");
-      tr.className = "clickable";
-      tr.onclick = () => openDrawer("Tag", t.id);
-      tr.innerHTML = `
-        <td class="tag-code-cell" style="font-family:var(--mono); font-weight:600; color:var(--ink-primary); cursor:help;">${t.tag_code}</td>
-        <td style="font-family:var(--mono);">${t.schedule_num.replace(/^P-/, '')}</td>
-        <td>${t.source} / ${t.sink}</td>
-        <td>${t.por} / ${t.pod}</td>
-        <td>${t.cpse}</td>
-        <td style="font-family:var(--mono); font-weight:600;">${t.mw}</td>
-        <td><span style="font-family:var(--mono); font-size:10px; color:var(--ink-secondary); font-weight:600;">${pathStr}</span></td>
-        <td>${statusBadge}</td>
-        <td>
-          <i data-lucide="eye" style="color:var(--ink-dim); width:15px; height:15px;"></i>
-        </td>
-      `;
-      // Tooltip lives ONLY on the Tag Code cell now — every other column is inert
-      const tagCell = tr.querySelector(".tag-code-cell");
-      if (tagCell) {
-        tagCell.onmousemove = (e) => showFlowTooltip(e, "Tag", t.id, t.location);
-        tagCell.onmouseout  = () => hideFlowTooltip();
-      }
-      tbody.appendChild(tr);
+const group = FINAL_PLAN.find(p => p.tag_index === tag.id);
+const linkedPurchases = (group?.rows || [])
+  .filter(r => r.type === "PURCHASE")
+  .map(r => String(r.deal_number))   // deal_number is numeric — coerce before join
+  .join(", ");
+// e.g. "2548274, 2548301"  (empty string "" if none)
