@@ -1,43 +1,102 @@
-// BEFORE (in showScheduleTagTooltip, ~line 2894)
-    const loc = STATE.locations.find(l => l.name === tag.location);
-    const proportion = (loc && loc.totalMW > 0) ? (tag.mw / loc.totalMW) : 0;
-    const tagAllocA = loc ? Math.round(loc.allocA * proportion * 10) / 10 : 0;
-    const tagAllocB = loc ? Math.round(loc.allocB * proportion * 10) / 10 : 0;
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    color: #17375D;
+    line-height: 1.4;
+    max-width: 1050px;
+  }
+  p { margin: 10px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 6px;
+  }
+  td {
+    border: 1px solid #8DB4E2;
+    padding: 4px 10px;
+    vertical-align: top;
+  }
+  .section-header {
+    background-color: #DBE5F1;
+    font-weight: bold;
+    color: #17375D;
+  }
+  ul {
+    margin: 4px 0;
+    padding-left: 22px;
+    list-style-type: square;
+  }
+  li { margin: 3px 0; }
+  .note { color: #1F497D; font-style: italic; }
+</style>
+</head>
+<body>
 
-// AFTER — Product A/B = this tag's actual SALE volumes from the plan
-    const __g = (FINAL_PLAN || []).find(x => x.tag_code === tagCode);
-    let tagAllocA = 0, tagAllocB = 0;
-    ((__g && __g.rows) || []).forEach(r => {
-      if (r.type !== 'SALE') return;
-      if (/\bA\b/.test(String(r.product || ''))) tagAllocA += Number(r.volume || 0);
-      else tagAllocB += Number(r.volume || 0);
-    });
-    tagAllocA = Math.round(tagAllocA * 10) / 10;
-    tagAllocB = Math.round(tagAllocB * 10) / 10;
+<p>Hello All,</p>
 
-// BEFORE
-      const loc = STATE.locations.find(l => l.name === locName);
-      if (!loc) return;
-      const vol = id === "SAL-AMZ-A" ? loc.allocA : loc.allocB;
-      const profile = id === "SAL-AMZ-A" ? loc.profileA : loc.profileB;
-      const color = id === "SAL-AMZ-A" ? "var(--green)" : "var(--blue)";
-      const prodText = id === "SAL-AMZ-A" ? "ACS Energy" : "Carbon Free";
-      const prodName = id === "SAL-AMZ-A" ? "Sale Product A" : "Sale Product B";
-      const badgeClass = id === "SAL-AMZ-A" ? "green" : "blue";
+<p>Please find meeting minutes summarizing what we have covered in yesterday&rsquo;s meeting.</p>
 
+<p>We showcased use case 1.1, reviewed the Agent Registry and repository structure, and Abhi walked through UI dynamic formatting.</p>
 
-// AFTER — A/B comes from the sale deal's own product
-      const isA = /\bA\b/.test(String(deal.product || ''));
-      const vol = Number(deal.mw || 0);
-      const __tg = STATE.tags.find(t => t.tag_code === deal.tag_code) || { _curve: 'baseload' };
-      const profile = getHourlyProfile(Math.abs(vol), __tg._curve || 'baseload');
-      const color = isA ? "var(--green)" : "var(--blue)";
-      const prodText = deal.product || (isA ? "Sale Product A" : "Sale Product B");
-      const prodName = isA ? "Sale Product A" : "Sale Product B";
-      const badgeClass = isA ? "green" : "blue";
+<table>
+  <tr><td class="section-header">Use Case 1.1 &ndash; Settlement UI:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Use case 1.1 was showcased.</li>
+      <li>Suggested changes: update the UI design of the settlement use cases.</li>
+    </ul>
+  </td></tr>
 
+  <tr><td class="section-header">Agent Registry &amp; Structure Review:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Ravi will share the update on the repo review for the registry and structure.</li>
+      <li>We will have the same issue with Agent and MCP &ndash; MCP has not been registered.</li>
+      <li>The data model does not have a service type to help identify whether it is an Agent or an MCP.</li>
+      <li>Security issues &ndash; these will be part of MVP2.</li>
+      <li>Proper separation of concerns is needed.</li>
+      <li>In the request object, we are expecting the ID of the agent in the registry file, which is incorrect.</li>
+      <li>In agentMeta, remove the agent_id; use enums in place of literals.</li>
+      <li>Metadata and model versioning to be addressed.</li>
+      <li>The registry health endpoint is returning &ldquo;OK&rdquo; for now &ndash; use Grafana to report health.</li>
+      <li>TTL index immutability for MongoDB, and implement Flyway OSS with MongoDB.</li>
+    </ul>
+  </td></tr>
 
-// BEFORE (line 5485)
-      const tag = STATE.tags.find(t => t.id === purch.tag_id) || { _curve: 'baseload', sink: "AMAZON_SINK", product: "A", tag_code: "N/A" };
-// AFTER
-      const tag = STATE.tags.find(t => t.tag_code === (purch.tag_code || purch.tag_id)) || { _curve: 'baseload', shape: 'baseload', sink: "AMAZON_SINK", product: "A", tag_code: "N/A" };
+  <tr><td class="section-header">Repository Structure:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Bring services inside the src folder.</li>
+      <li>Host the Genie UI separately.</li>
+      <li>Replace LLM-Guard with Nemo Guard.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">UI Dynamic Formatting:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Abhi discussed UI dynamic formatting and explained markdown rendering and sandbox code execution.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">Action Items:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Ravi to share the update on the repo review for the registry and structure.</li>
+      <li>Update the UI design of the settlement use cases (use case 1.1).</li>
+      <li>Address registry data model gaps: add a service type, correct the request-object ID handling, replace literals with enums, and remove agent_id from agentMeta.</li>
+      <li>Implement Grafana-based registry health reporting.</li>
+      <li>Implement TTL index immutability and Flyway OSS with MongoDB.</li>
+      <li>Restructure the repository: move services into src, host the Genie UI separately, and replace LLM-Guard with Nemo Guard.</li>
+      <li>Security issues to be scheduled for MVP2.</li>
+    </ul>
+  </td></tr>
+</table>
+
+</body>
+</html>
