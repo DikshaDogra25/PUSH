@@ -1,26 +1,2 @@
-// BEFORE
-            <td style="text-align: right; font-family: var(--mono); color: #ffa854; font-weight: 500; font-size: 11px;">${loc.totalMW.toFixed(1)}</td>
-// AFTER
-            <td style="text-align: right; font-family: var(--mono); color: #ffa854; font-weight: 500; font-size: 11px;">${(loc.allocA + loc.allocB).toFixed(1)}</td>
-
-// BEFORE
-      const totalIngestedVol = locations.reduce((sum, loc) => sum + loc.totalMW, 0);
-      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MWh`;
-// AFTER
-      const totalIngestedVol = locations.reduce((sum, loc) => sum + (loc.allocA + loc.allocB), 0);
-      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MW`;
-
-// BEFORE (pattern — sums a stale/empty source -> 0.0)
-    const prodATotal = ...find(s => s.id === "SAL-AMZ-A")... // or similar
-// AFTER
-    const prodATotal = STATE.locations.reduce((s, l) => s + (l.allocA || 0), 0);
-    // Product B popup:
-    const prodBTotal = STATE.locations.reduce((s, l) => s + (l.allocB || 0), 0);
-
-// BEFORE (pattern)
-              <span>${loc.name}</span>
-// AFTER
-              <span>${loc.name} <span style="font-size:9px; font-weight:600; color:${
-                  (getLocationState(loc.name)==='Accepted'||getLocationState(loc.name)==='Committed') ? 'var(--green)'
-                  : getLocationState(loc.name)==='Rejected' ? 'var(--red)' : 'var(--ink-dim)'
-                }; text-transform:uppercase;">${getLocationState(loc.name)}</span></span>
+// find the function that builds this popup
+Object.keys(window).filter(k => typeof window[k]==='function' && /Product A Total|Product A Allocation/.test(window[k].toString()))
