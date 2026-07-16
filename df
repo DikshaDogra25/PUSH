@@ -1,6 +1,3 @@
-const group = FINAL_PLAN.find(p => p.tag_index === tag.id);
-const linkedPurchases = (group?.rows || [])
-  .filter(r => r.type === "PURCHASE")
-  .map(r => String(r.deal_number))   // deal_number is numeric — coerce before join
-  .join(", ");
-// e.g. "2548274, 2548301"  (empty string "" if none)
+<a onclick="openDashboard()" class="launch-btn" style="cursor: pointer;">
+  Open Dashboard <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
+</a>
