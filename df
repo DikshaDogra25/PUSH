@@ -1,5 +1,27 @@
-['prodA','prodB','balance','ingest'].forEach(()=>{});
-Object.keys(window)
-  .filter(k => typeof window[k]==='function' &&
-    /Product A Total|Product B Total|Total Ingested|Location Status Matrix|Product B Spillover/.test(window[k].toString()))
-  .forEach(k => { console.log('==== '+k+' ===='); console.log(window[k].toString()); });
+// BEFORE
+          <strong style="color:var(--green);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw.toFixed(1) || "0.0"} / ${STATE.limitA} MW</strong>
+// AFTER
+          <strong style="color:var(--green);">${STATE.locations.filter(l => getLocationState(l.name) !== 'Rejected').reduce((s, l) => s + (l.allocA || 0), 0).toFixed(1)} / ${STATE.limitA} MW</strong>
+
+// BEFORE
+          <strong style="color:var(--blue);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw.toFixed(1) || "0.0"} MW</strong>
+// AFTER
+          <strong style="color:var(--blue);">${STATE.locations.filter(l => getLocationState(l.name) !== 'Rejected').reduce((s, l) => s + (l.allocB || 0), 0).toFixed(1)} MW</strong>
+
+// BEFORE (lines 5866-5874)
+        const locTags = STATE.tags.filter(t => t.location === loc.name);
+        const counts = { Draft: 0, Accepted: 0, Rejected: 0, Scheduled: 0 };
+        locTags.forEach(t => {
+          const ts = t.status || "Draft";
+          if (ts === "Committed") counts.Scheduled++;
+          else if (ts === "Accepted") counts.Accepted++;
+          else if (ts === "Rejected") counts.Rejected++;
+          else counts.Draft++;
+        });
+// AFTER — one count per location, from the same source the list uses
+        const counts = { Draft: 0, Accepted: 0, Rejected: 0, Scheduled: 0 };
+        const st = getLocationState(loc.name);
+        if (st === "Committed") counts.Scheduled++;
+        else if (st === "Accepted") counts.Accepted++;
+        else if (st === "Rejected") counts.Rejected++;
+        else counts.Draft++;
