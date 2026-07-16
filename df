@@ -1,2 +1,5 @@
-// find the function that builds this popup
-Object.keys(window).filter(k => typeof window[k]==='function' && /Product A Total|Product A Allocation/.test(window[k].toString()))
+// BEFORE (line 503)
+      const totalIngestedVol = locations.reduce((sum, loc) => sum + (loc.allocA + loc.allocB), 0);
+// AFTER
+      const totalIngestedVol = locations.reduce((sum, loc) =>
+        sum + (Math.round(loc.allocA * 10) / 10) + (Math.round(loc.allocB * 10) / 10), 0);
