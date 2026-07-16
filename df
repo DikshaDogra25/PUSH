@@ -1,20 +1,68 @@
-// BEFORE
-          <strong style="color:var(--green);">${STATE.locations.filter(l => getLocationState(l.name) !== 'Rejected').reduce((s, l) => s + (l.allocA || 0), 0).toFixed(1)} / ${STATE.limitA} MW</strong>
-// AFTER — average the capped hourly profile, identical basis to the KPI card
-          <strong style="color:var(--green);">${(profileA.reduce((s, v) => s + v, 0) / 24).toFixed(1)} / ${STATE.limitA} MW</strong>
+function computePortfolioTotals() {
+  const cap  = STATE.limitA;
+  const locs = STATE.locations || [];
+  const hourlyA = Array(24).fill(0), hourlyB = Array(24).fill(0);
+  let sumA = 0, sumB = 0;
+  for (let h = 0; h < 24; h++) {
+    let hourA = 0, hourTot = 0;
+    locs.forEach(l => {
+      if (l.name === 'All') return;                        // aggregate row — never re-sum it
+      if (getLocationState(l.name) === 'Rejected') return; // rejected locations excluded everywhere
+      const a = (l.profileA && l.profileA[h]) || 0;
+      const b = (l.profileB && l.profileB[h]) || 0;
+      hourA   += a;
+      hourTot += a + b;
+    });
+    hourA = Math.min(hourA, cap);                          // Product A capped per hour
+    hourlyA[h] = hourA;
+    hourlyB[h] = Math.max(0, hourTot - hourA);
+    sumA += hourlyA[h];
+    sumB += hourlyB[h];
+  }
+  const A = Math.round((sumA / 24) * 10) / 10;             // round ONCE
+  const B = Math.round((sumB / 24) * 10) / 10;             // round ONCE
+  return { hourlyA, hourlyB, A, B, total: Math.round((A + B) * 10) / 10 };
+}
 
-// AFTER
-          <strong style="color:var(--blue);">${(profileB.reduce((s, v) => s + v, 0) / 24).toFixed(1)} MW</strong>
+// OLD
+    document.getElementById("kpi-tag-mw").innerHTML = `${STATE.balanceStats.uncommitted_tags_mw} <span class="subtext">MW</span>`;
 
-// BEFORE
-            <strong style="color:var(--orange); font-family:var(--mono); text-align:right;">${loc.totalMW.toFixed(1)}</strong>
-// AFTER
-            <strong style="color:var(--orange); font-family:var(--mono); text-align:right;">${(loc.allocA + loc.allocB).toFixed(1)}</strong>
+// NEW
+    STATE.portfolio = computePortfolioTotals();   // single source of truth for A / B / total
+    // Headline reconciles exactly with the Product A + Product B cards below it
+    document.getElementById("kpi-tag-mw").innerHTML = `${STATE.portfolio.total.toFixed(1)} <span class="subtext">MW</span>`;
 
-// ADD after line 5778 (the `}).join("");`)
-      const __ingTotal = STATE.locations.reduce((s, l) => s + (l.allocA || 0) + (l.allocB || 0), 0);
 
-// line 5792 — BEFORE
+// OLD  (the whole __kpiLocs / __sumA / __sumB loop through `const totalB = ...`)
+    const limitMax = STATE.limitA;
+    const __kpiLocs = STATE.locations;
+    let __sumA = 0, __sumB = 0;
+    for (let h = 0; h < 24; h++) { /* ...loop... */ }
+    const totalA = Math.round((__sumA / 24) * 10) / 10;
+    const totalB = Math.round((__sumB / 24) * 10) / 10;
+    const isAFull = totalA >= limitMax;
+
+// NEW
+    const limitMax = STATE.limitA;
+    const totalA = STATE.portfolio.A;   // same numbers as the headline + every footer
+    const totalB = STATE.portfolio.B;
+    const isAFull = totalA >= limitMax;
+
+
+// "tag" tooltip footer (≈5792)
+// OLD
           <strong style="color:#fff;">${STATE.balanceStats.tags_mw.toFixed(1)} MW</strong>
-// AFTER
-          <strong style="color:#fff;">${__ingTotal.toFixed(1)} MW</strong>
+// NEW
+          <strong style="color:#fff;">${(STATE.portfolio || computePortfolioTotals()).total.toFixed(1)} MW</strong>
+
+// "a" tooltip footer (≈5826)  — also kills the dead SAL-AMZ-A → 0.0
+// OLD
+          <strong style="color:var(--green);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw.toFixed(1) || "0.0"} / ${STATE.limitA} MW</strong>
+// NEW
+          <strong style="color:var(--green);">${(STATE.portfolio || computePortfolioTotals()).A.toFixed(1)} / ${STATE.limitA} MW</strong>
+
+// "b" tooltip footer (≈5860)
+// OLD
+          <strong style="color:var(--blue);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw.toFixed(1) || "0.0"} MW</strong>
+// NEW
+          <strong style="color:var(--blue);">${(STATE.portfolio || computePortfolioTotals()).B.toFixed(1)} MW</strong>
