@@ -1,3 +1,10 @@
-<a onclick="openDashboard()" class="launch-btn" style="cursor: pointer;">
-  Open Dashboard <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
-</a>
+// Source_Temp may be a single name or a comma-separated list ("PRP and Grant, GCPD").
+// Build a trimmed set once, then exact-match each tag's location against it.
+const __srcSet = new Set(
+  String(activeLoc.Source_Temp || activeLoc.name)   // fall back to name if Source_Temp is absent
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)                                 // drop empties from trailing/double commas
+);
+
+const activeLocTags = STATE.tags.filter(t => __srcSet.has((t.location || "").trim()));
