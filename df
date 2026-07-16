@@ -1,5 +1,5 @@
-// BEFORE (line 503)
-      const totalIngestedVol = locations.reduce((sum, loc) => sum + (loc.allocA + loc.allocB), 0);
-// AFTER
-      const totalIngestedVol = locations.reduce((sum, loc) =>
-        sum + (Math.round(loc.allocA * 10) / 10) + (Math.round(loc.allocB * 10) / 10), 0);
+['prodA','prodB','balance','ingest'].forEach(()=>{});
+Object.keys(window)
+  .filter(k => typeof window[k]==='function' &&
+    /Product A Total|Product B Total|Total Ingested|Location Status Matrix|Product B Spillover/.test(window[k].toString()))
+  .forEach(k => { console.log('==== '+k+' ===='); console.log(window[k].toString()); });
