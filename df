@@ -1,68 +1,45 @@
-function computePortfolioTotals() {
-  const cap  = STATE.limitA;
-  const locs = STATE.locations || [];
-  const hourlyA = Array(24).fill(0), hourlyB = Array(24).fill(0);
-  let sumA = 0, sumB = 0;
-  for (let h = 0; h < 24; h++) {
-    let hourA = 0, hourTot = 0;
-    locs.forEach(l => {
-      if (l.name === 'All') return;                        // aggregate row — never re-sum it
-      if (getLocationState(l.name) === 'Rejected') return; // rejected locations excluded everywhere
-      const a = (l.profileA && l.profileA[h]) || 0;
-      const b = (l.profileB && l.profileB[h]) || 0;
-      hourA   += a;
-      hourTot += a + b;
-    });
-    hourA = Math.min(hourA, cap);                          // Product A capped per hour
-    hourlyA[h] = hourA;
-    hourlyB[h] = Math.max(0, hourTot - hourA);
-    sumA += hourlyA[h];
-    sumB += hourlyB[h];
-  }
-  const A = Math.round((sumA / 24) * 10) / 10;             // round ONCE
-  const B = Math.round((sumB / 24) * 10) / 10;             // round ONCE
-  return { hourlyA, hourlyB, A, B, total: Math.round((A + B) * 10) / 10 };
-}
-
 // OLD
-    document.getElementById("kpi-tag-mw").innerHTML = `${STATE.balanceStats.uncommitted_tags_mw} <span class="subtext">MW</span>`;
+      const tr = document.createElement("tr");
+      tr.className = "clickable";
+      tr.onclick = () => openDrawer("Tag", t.id);
+      tr.onmousemove = (e) => showFlowTooltip(e, "Tag", t.id, t.location);   // row-wide — fires on every column
+      tr.onmouseout = () => hideFlowTooltip();
+      tr.innerHTML = `
+        <td style="font-family:var(--mono); font-weight:600; color:var(--ink-primary);">${t.tag_code}</td>
+        <td style="font-family:var(--mono);">${t.schedule_num.replace(/^P-/, '')}</td>
+        <td>${t.source} / ${t.sink}</td>
+        <td>${t.por} / ${t.pod}</td>
+        <td>${t.cpse}</td>
+        <td style="font-family:var(--mono); font-weight:600;">${t.mw}</td>
+        <td><span style="font-family:var(--mono); font-size:10px; color:var(--ink-secondary); font-weight:600;">${pathStr}</span></td>
+        <td>${statusBadge}</td>
+        <td>
+          <i data-lucide="eye" style="color:var(--ink-dim); width:15px; height:15px;"></i>
+        </td>
+      `;
+      tbody.appendChild(tr);
 
 // NEW
-    STATE.portfolio = computePortfolioTotals();   // single source of truth for A / B / total
-    // Headline reconciles exactly with the Product A + Product B cards below it
-    document.getElementById("kpi-tag-mw").innerHTML = `${STATE.portfolio.total.toFixed(1)} <span class="subtext">MW</span>`;
-
-
-// OLD  (the whole __kpiLocs / __sumA / __sumB loop through `const totalB = ...`)
-    const limitMax = STATE.limitA;
-    const __kpiLocs = STATE.locations;
-    let __sumA = 0, __sumB = 0;
-    for (let h = 0; h < 24; h++) { /* ...loop... */ }
-    const totalA = Math.round((__sumA / 24) * 10) / 10;
-    const totalB = Math.round((__sumB / 24) * 10) / 10;
-    const isAFull = totalA >= limitMax;
-
-// NEW
-    const limitMax = STATE.limitA;
-    const totalA = STATE.portfolio.A;   // same numbers as the headline + every footer
-    const totalB = STATE.portfolio.B;
-    const isAFull = totalA >= limitMax;
-
-
-// "tag" tooltip footer (≈5792)
-// OLD
-          <strong style="color:#fff;">${STATE.balanceStats.tags_mw.toFixed(1)} MW</strong>
-// NEW
-          <strong style="color:#fff;">${(STATE.portfolio || computePortfolioTotals()).total.toFixed(1)} MW</strong>
-
-// "a" tooltip footer (≈5826)  — also kills the dead SAL-AMZ-A → 0.0
-// OLD
-          <strong style="color:var(--green);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-A")?.mw.toFixed(1) || "0.0"} / ${STATE.limitA} MW</strong>
-// NEW
-          <strong style="color:var(--green);">${(STATE.portfolio || computePortfolioTotals()).A.toFixed(1)} / ${STATE.limitA} MW</strong>
-
-// "b" tooltip footer (≈5860)
-// OLD
-          <strong style="color:var(--blue);">${STATE.saleDeals.find(s => s.id === "SAL-AMZ-B")?.mw.toFixed(1) || "0.0"} MW</strong>
-// NEW
-          <strong style="color:var(--blue);">${(STATE.portfolio || computePortfolioTotals()).B.toFixed(1)} MW</strong>
+      const tr = document.createElement("tr");
+      tr.className = "clickable";
+      tr.onclick = () => openDrawer("Tag", t.id);
+      tr.innerHTML = `
+        <td class="tag-code-cell" style="font-family:var(--mono); font-weight:600; color:var(--ink-primary); cursor:help;">${t.tag_code}</td>
+        <td style="font-family:var(--mono);">${t.schedule_num.replace(/^P-/, '')}</td>
+        <td>${t.source} / ${t.sink}</td>
+        <td>${t.por} / ${t.pod}</td>
+        <td>${t.cpse}</td>
+        <td style="font-family:var(--mono); font-weight:600;">${t.mw}</td>
+        <td><span style="font-family:var(--mono); font-size:10px; color:var(--ink-secondary); font-weight:600;">${pathStr}</span></td>
+        <td>${statusBadge}</td>
+        <td>
+          <i data-lucide="eye" style="color:var(--ink-dim); width:15px; height:15px;"></i>
+        </td>
+      `;
+      // Tooltip lives ONLY on the Tag Code cell now — every other column is inert
+      const tagCell = tr.querySelector(".tag-code-cell");
+      if (tagCell) {
+        tagCell.onmousemove = (e) => showFlowTooltip(e, "Tag", t.id, t.location);
+        tagCell.onmouseout  = () => hideFlowTooltip();
+      }
+      tbody.appendChild(tr);
