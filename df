@@ -1,64 +1,26 @@
-@dataclass
-class Rule:
-    id: str
-    source: str
-    product: str = ""
-    description: str = ""
-    active: bool = True
-    group: str = ""
+// BEFORE
+            <td style="text-align: right; font-family: var(--mono); color: #ffa854; font-weight: 500; font-size: 11px;">${loc.totalMW.toFixed(1)}</td>
+// AFTER
+            <td style="text-align: right; font-family: var(--mono); color: #ffa854; font-weight: 500; font-size: 11px;">${(loc.allocA + loc.allocB).toFixed(1)}</td>
 
-@dataclass
-class Rule:
-    id: str
-    source: str
-    product: str = ""
-    description: str = ""
-    active: bool = True
-    group: str = ""
-    upstream_pse: str = ""
+// BEFORE
+      const totalIngestedVol = locations.reduce((sum, loc) => sum + loc.totalMW, 0);
+      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MWh`;
+// AFTER
+      const totalIngestedVol = locations.reduce((sum, loc) => sum + (loc.allocA + loc.allocB), 0);
+      document.getElementById("footer-total").innerText = `${totalIngestedVol.toFixed(1)} MW`;
 
-base = dict(
-                id=r["id"],
-                product=r.get("product", ""),
-                description=r.get("description", ""),
-                active=r.get("active", True),
-            )
+// BEFORE (pattern — sums a stale/empty source -> 0.0)
+    const prodATotal = ...find(s => s.id === "SAL-AMZ-A")... // or similar
+// AFTER
+    const prodATotal = STATE.locations.reduce((s, l) => s + (l.allocA || 0), 0);
+    // Product B popup:
+    const prodBTotal = STATE.locations.reduce((s, l) => s + (l.allocB || 0), 0);
 
-base = dict(
-                id=r["id"],
-                product=r.get("product", ""),
-                description=r.get("description", ""),
-                active=r.get("active", True),
-                upstream_pse=r.get("upstream_pse", ""),
-            )
-
-else:
-            annotated["rule_id"] = self._match_rule_id(annotated[col])
-            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
-
-else:
-            annotated["rule_id"] = self._match_rule_id(annotated[col])
-
-            # upstream_pse: enforce ONLY for rules that define a non-empty value.
-            upstream_lookup = {r.id: r.upstream_pse for r in self.ruleset.active_rules}
-            up_col = "UpstreamPSE"
-            if up_col in annotated.columns:
-                required = (annotated["rule_id"].map(upstream_lookup)
-                            .astype("string").str.strip().str.lower())
-                row_up = self._norm(annotated[up_col])
-                needs_check = required.notna() & (required != "")
-                annotated.loc[needs_check & (row_up != required), "rule_id"] = pd.NA
-            annotated["upstream_pse"] = annotated["rule_id"].map(upstream_lookup).astype("string")
-
-            product_lookup = {r.id: r.product for r in self.ruleset.active_rules}
-            annotated["product"] = annotated["rule_id"].map(product_lookup).astype("string")
-
-annotated["rule_id"] = pd.Series(dtype="string")
-            annotated["product"] = pd.Series(dtype="string")
-            annotated["Source_Temp"] = pd.Series(dtype="string")
-
-annotated["rule_id"] = pd.Series(dtype="string")
-            annotated["product"] = pd.Series(dtype="string")
-            annotated["Source_Temp"] = pd.Series(dtype="string")
-            annotated["upstream_pse"] = pd.Series(dtype="string")
+// BEFORE (pattern)
+              <span>${loc.name}</span>
+// AFTER
+              <span>${loc.name} <span style="font-size:9px; font-weight:600; color:${
+                  (getLocationState(loc.name)==='Accepted'||getLocationState(loc.name)==='Committed') ? 'var(--green)'
+                  : getLocationState(loc.name)==='Rejected' ? 'var(--red)' : 'var(--ink-dim)'
+                }; text-transform:uppercase;">${getLocationState(loc.name)}</span></span>
