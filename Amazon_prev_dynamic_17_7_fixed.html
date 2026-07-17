@@ -1,0 +1,613 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amazon Schedule Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg: #060608;
+      --surface: #0a0a0d;
+      --surface-card: #101015;
+      --border-light: rgba(255, 255, 255, 0.03);
+      --border-hover: rgba(6, 182, 212, 0.16);
+      --cyan: #06b6d4;
+      --ink-primary: #f1f5f9;
+      --ink-secondary: #cbd5e1;
+      --ink-dim: #8a99ad;
+      --ink-muted: #3d4959;
+      --orange: #ffa854;
+      --red: #d6455b;
+      --green: #149974;
+      --sans: 'Inter', sans-serif;
+      --brand: 'Outfit', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      --radius: 12px;
+      --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.6);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.8);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      font-family: var(--sans);
+      color: var(--ink-primary);
+      padding: 12px;
+      overflow-x: hidden;
+      line-height: 1.4;
+    }
+    .preview-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 16px;
+      max-width: 420px;
+      margin: 0 auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 10px;
+    }
+    .title-group h2 {
+      font-family: var(--brand);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .launch-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--cyan);
+      text-decoration: none;
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .launch-btn:hover {
+      background: rgba(6, 182, 212, 0.16);
+      border-color: var(--cyan);
+    }
+
+    /* Original KPI Widget styling copied from dashboard */
+    .kpi-widget {
+      background: var(--surface-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .kpi-widget:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md), 0 0 24px rgba(20, 153, 116, 0.02);
+    }
+    .kpi-widget::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 2px; height: 100%;
+      background: var(--ink-muted);
+      transition: var(--transition);
+    }
+    .kpi-widget.ok::before { background: var(--green); }
+    .kpi-widget.warn::before { background: var(--amber); }
+    .kpi-widget.danger::before { background: var(--red); }
+    .kpi-widget.blue::before { background: var(--blue); }
+
+    .kpi-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 1;
+    }
+    .kpi-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--ink-dim);
+      letter-spacing: 0.05em;
+    }
+    .kpi-value {
+      font-family: var(--brand);
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--ink-primary);
+      line-height: 1.1;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      transition: var(--transition);
+    }
+    .kpi-value .subtext {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink-dim);
+      font-family: var(--sans);
+    }
+    .kpi-sub {
+      font-size: 9px;
+      color: var(--ink-dim);
+      font-weight: 500;
+      font-family: var(--sans);
+      line-height: 1.3;
+    }
+    .kpi-icon-container {
+      border: none;
+      background: transparent;
+    }
+    .kpi-scale-label {
+      display: block;
+    }
+
+    /* Detail Table and Scrollbar styling */
+    .table-container {
+      max-height: 150px;
+      overflow-y: scroll;      /* vertical scrollbar */
+      overflow-x: auto;      /* horizontal scrollbar */
+      margin-bottom: 12px;
+      scrollbar-width: thin;                              /* Firefox */
+      scrollbar-color: #b8bcc4 rgba(255, 255, 255, 0.06); /* thumb, track (Firefox) */
+    }
+    /* Visible light-grey scrollbars (Chrome/Edge/Safari) */
+    .table-container::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    .table-container::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 99px;
+    }
+    .table-container::-webkit-scrollbar-thumb {
+      background: #b8bcc4;
+      border-radius: 99px;
+      border: 2px solid rgba(0, 0, 0, 0.2);
+      background-clip: padding-box;
+    }
+    .table-container::-webkit-scrollbar-thumb:hover {
+      background: #d5d8de;
+    }
+    .table-container::-webkit-scrollbar-corner {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      text-align: left;
+    }
+    .tbl th {
+      position: sticky;
+      top: 0;
+      background: var(--surface-card);
+      color: var(--ink-dim);
+      padding: 6px 4px;
+      font-weight: 600;
+      font-size: 10px;
+      border-bottom: 1px solid var(--border-light);
+      z-index: 10;
+    }
+    .tbl td {
+      padding: 7px 4px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.03);
+      color: var(--ink-secondary);
+      vertical-align: middle;
+    }
+    .tbl tr:hover td {
+      background: rgba(255, 255, 255, 0.01);
+    }
+    .tbl tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Footer total row */
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-light);
+      font-size: 12px;
+    }
+    .footer-row span {
+      color: var(--ink-dim);
+    }
+    .footer-row strong {
+      color: #fff;
+      font-weight: 700;
+      font-family: var(--brand);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="preview-card">
+    <!-- Header -->
+    <div class="header">
+      <div class="title-group">
+        <h2 style="display:flex; align-items:center; gap:8px;"><i data-lucide="flame" style="width: 24px; height: 24px; color: var(--red); flex-shrink:0;"></i> Amazon Schedule Planner</h2>
+      </div>
+    <a onclick="onClick()" class="launch-btn" style="cursor: pointer;">
+	  Open Dashboard <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
+	</a>
+    </div>
+
+    <!-- Replicated KPI Widget (copied exactly from main dashboard specification) -->
+    <div class="kpi-widget" id="kpi-unscheduled-tags"  style="cursor: pointer; flex-direction: column; align-items: flex-start; gap: 6px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+        <div class="kpi-details">
+          <span class="kpi-label">Unscheduled Tags</span>
+          <span class="kpi-value" id="kpi-tag-mw">0 <span class="subtext">MWh</span></span>
+        </div>
+        <div class="kpi-icon-container ok" id="kpi-tags-chart-container" style="flex: 1; min-width: 80px; height: 45px; display: flex; align-items: flex-end; justify-content: space-between; padding: 4px 0 0 10px;">
+          <!-- SVG dynamically rendered here -->
+        </div>
+      </div>
+      <span class="kpi-sub" id="kpi-tag-count" style="display: block; margin-top: auto;">12 draft · 0 accepted · 0 rejected · 0 scheduled</span>
+      <div id="kpi-tags-segbar" style="height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; width: 100%; display: flex;">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="table-container">
+      <table class="tbl" id="detail-table">
+        <thead>
+          <tr>
+            <th style="width: 32%;">Location</th>
+            <th style="width: 20%;">Status</th>
+            <th style="width: 16%; text-align: right; color: var(--green);">Prod A</th>
+            <th style="width: 16%; text-align: right; color: #ffb020;">Prod B</th>
+            <th style="width: 16%; text-align: right; color: #ffa854;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dynamic rows -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Total Ingested Footer -->
+    <div class="footer-row">
+      <span>Total Ingested:</span>
+      <strong id="footer-total">0.0 MWh</strong>
+    </div>
+  </div>
+
+  <script>
+  
+	  if (document.domain.split('.').length > 2) {
+	document.domain = document.domain.match(/.*?([^.]+\.[^.]+$)/)[1];
+	}
+	var webVisionRoot = window.parent;
+    // Exact same database structure for matching mathematical calculations
+    const ORIGINAL_TAGS_DB = [
+      { id: "TAG-AMZ-MISO-01", location: "MISO_HUB", mw: 18, _curve: "baseload" },
+      { id: "TAG-AMZ-MISO-02", location: "MISO_HUB", mw: 12, _curve: "wind" },
+      { id: "TAG-AMZ-PJM-01", location: "PJM_WEST", mw: 45, _curve: "duck" },
+      { id: "TAG-AMZ-ERCOT-01", location: "ERCOT_NORTH", mw: 38, _curve: "wind" },
+      { id: "TAG-AMZ-SPP-01", location: "SPP_SOUTH", mw: 32, _curve: "wind" },
+      { id: "TAG-AMZ-NP15-01", location: "CAISO_NP15", mw: 85, _curve: "solar" },
+      { id: "TAG-AMZ-SP15-01", location: "CAISO_SP15", mw: 75, _curve: "solar" },
+      { id: "TAG-AMZ-NY-01", location: "NYISO_G-J", mw: 12, _curve: "hydro" },
+      { id: "TAG-AMZ-NY-02", location: "NYISO_G-J", mw: 8, _curve: "wind" },
+      { id: "TAG-AMZ-NE-01", location: "ISONE_H", mw: 22, _curve: "duck" },
+      { id: "TAG-AMZ-MIDC-01", location: "MID_C", mw: 10, _curve: "wind" },
+      { id: "TAG-AMZ-COB-01", location: "COB", mw: 8, _curve: "baseload" }
+    ];
+
+    const _CURVES = {
+      solar:    [0.80,0.80,0.80,0.80,0.80,0.85,1.15,1.65,2.05,2.35,2.55,2.70,2.75,2.65,2.35,1.95,1.45,0.95,0.85,0.80,0.80,0.80,0.80,0.80],
+      duck:     [0.90,0.88,0.86,0.85,0.86,0.92,1.28,1.65,1.75,1.40,0.95,0.78,0.75,0.78,0.88,1.08,1.40,1.85,2.15,2.28,2.08,1.68,1.18,0.95],
+      wind:     [1.28,1.35,1.38,1.35,1.28,1.15,0.98,0.85,0.75,0.70,0.68,0.68,0.70,0.75,0.82,0.90,0.98,1.08,1.18,1.25,1.32,1.30,1.28,1.25],
+      hydro:    [0.85,0.83,0.82,0.82,0.85,0.95,1.25,1.70,1.85,1.55,1.25,1.08,0.98,0.98,1.05,1.18,1.38,1.75,1.95,1.90,1.60,1.28,1.00,0.90],
+      baseload: [0.95,0.93,0.92,0.91,0.92,0.94,0.98,1.02,1.05,1.08,1.10,1.09,1.08,1.07,1.06,1.07,1.10,1.12,1.15,1.14,1.11,1.08,1.02,0.98]
+    };
+
+    function getHourlyProfile(baseMW, curve) {
+      const raw = _CURVES[curve] || _CURVES.baseload;
+      const mean = raw.reduce((s, v) => s + v, 0) / 24;
+      return raw.map(v => Math.round((baseMW * v / mean) * 10) / 10);
+    }
+
+    let STATE = {
+      tags: JSON.parse(JSON.stringify(ORIGINAL_TAGS_DB)),
+      locationStates: {},
+      committed: false,
+      dataScenario: 'balanced'
+    };
+	 function onClick(){
+		webVisionRoot?.visionRoot?.Webvision?.utils.DisplayManager.openLink({ xtype: 'Amazon_Dashboard', title: 'Amazon Deal Schedule Dashboard' }, null, 0);
+	 }
+    function loadStateAndRender() {
+      // 1. Load state from localStorage
+      try {
+        const saved = localStorage.getItem('amazon_deal_schedule_planner_state');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.tags) {
+            parsed.tags.forEach(savedTag => {
+              const tag = STATE.tags.find(t => t.id === savedTag.id);
+              if (tag) tag.status = savedTag.status;
+            });
+          }
+          if (parsed.locationStates) STATE.locationStates = parsed.locationStates;
+          if (parsed.committed !== undefined) STATE.committed = parsed.committed;
+          if (parsed.dataScenario) STATE.dataScenario = parsed.dataScenario;
+        } else {
+          // Initialize defaults
+          STATE.tags.forEach(t => t.status = "Unscheduled");
+          STATE.locationStates = {};
+          STATE.committed = false;
+        }
+      } catch (e) {
+        console.error("Failed to load state", e);
+      }
+
+      // Helper function to resolve location status dynamically
+      function getLocState(locName) {
+        if (STATE.committed) return 'Committed';
+        const defined = STATE.locationStates[locName];
+        if (defined) return defined;
+        
+        // Derive state from tags at this location
+        const locTags = STATE.tags.filter(t => t.location === locName);
+        if (locTags.length === 0) return 'Draft';        // 'All' aggregate has no tags
+        if (locTags.every(t => t.status === 'Committed')) return 'Committed';
+        if (locTags.every(t => t.status === 'Accepted')) return 'Accepted';
+        if (locTags.every(t => t.status === 'Rejected')) return 'Rejected';
+        return 'Draft';
+      }
+
+      // Aggregate location volumes and profiles
+      const locMap = {};
+      STATE.tags.forEach(tag => {
+        if (!locMap[tag.location]) {
+          locMap[tag.location] = { name: tag.location, totalMW: 0, tags: [], profileTotal: Array(24).fill(0) };
+        }
+        locMap[tag.location].totalMW += tag.mw;
+        locMap[tag.location].tags.push(tag);
+        
+        const tp = Array.isArray(tag.hourly) ? tag.hourly : getHourlyProfile(tag.mw, tag._curve || "baseload");
+        for (let h = 0; h < 24; h++) {
+          locMap[tag.location].profileTotal[h] += tp[h];
+        }
+      });
+
+      const __cpOrder = [];
+      if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+        (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+          const cp = (x.CP || "").trim();
+          if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+        });
+        (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+          const cp = (x.CP || "").trim();
+          if (cp && __cpOrder.indexOf(cp) < 0) __cpOrder.push(cp);
+        });
+      }
+      const locations = __cpOrder.length
+        ? __cpOrder.map(function (cp) {
+            return locMap[cp] || { name: cp, totalMW: 0, tags: [], profileTotal: Array(24).fill(0) };
+          })
+        : Object.values(locMap);
+
+      // Perform Global Waterfall Allocation Math to get Prod A and Prod B splits
+      const limitA = 150;
+      locations.forEach(loc => {
+        loc.profileA = Array(24).fill(0);
+        loc.profileB = Array(24).fill(0);
+      });
+
+      for (let h = 0; h < 24; h++) {
+        let remainingCapA = limitA;
+        locations.forEach(loc => {
+          const val = loc.profileTotal[h];
+          if (remainingCapA > 0) {
+            const allocA = Math.min(val, remainingCapA);
+            loc.profileA[h] = Math.round(allocA * 10) / 10;
+            loc.profileB[h] = Math.round((val - allocA) * 10) / 10;
+            remainingCapA = Math.max(0, remainingCapA - allocA);
+          } else {
+            loc.profileA[h] = 0;
+            loc.profileB[h] = val;
+          }
+        });
+      }
+
+      // Calculate aggregated loc.allocA and loc.allocB
+      locations.forEach(loc => {
+        const sumA = loc.profileA.reduce((sum, v) => sum + v, 0);
+        const sumB = loc.profileB.reduce((sum, v) => sum + v, 0);
+        loc.allocA = Math.round((sumA / 24) * 10) / 10;
+        loc.allocB = Math.round((sumB / 24) * 10) / 10;
+        if (loc.allocA + loc.allocB !== loc.totalMW) {
+          loc.allocB = Math.round((loc.totalMW - loc.allocA) * 10) / 10;
+        }
+		
+		 // --- Verbatim allocation from result (match the main dashboard exactly) ---
+      if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+        var __toArr = function (ser) {
+          var a = Array(24).fill(0);
+          ((ser && ser.data) || []).forEach(function (d) {
+            var i = (d.HE | 0) - 1; if (i >= 0 && i < 24) a[i] = Number(d.values) || 0;
+          });
+          return a;
+        };
+        var __byCP = {};
+        (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+          var cp = (x.CP || "").trim(); (__byCP[cp] = __byCP[cp] || {}).A = __toArr(x);
+        });
+        (RESULT_ALLOCATION.ProductB || []).forEach(function (x) {
+          var cp = (x.CP || "").trim(); (__byCP[cp] = __byCP[cp] || {}).B = __toArr(x);
+        });
+        locations.forEach(function (loc) {
+          var cp = __byCP[loc.name]; if (!cp) return;
+          var A = cp.A || Array(24).fill(0), B = cp.B || Array(24).fill(0);
+          loc.profileA = A.map(function (v) { return Math.round(v * 10) / 10; });
+          loc.profileB = B.map(function (v) { return Math.round(v * 10) / 10; });
+          loc.profileTotal = A.map(function (v, i) { return Math.round((v + B[i]) * 10) / 10; });
+          loc.allocA = Math.round((A.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+          loc.allocB = Math.round((B.reduce(function (s, v) { return s + v; }, 0) / 24) * 10) / 10;
+          loc.totalMW = Math.round(loc.profileTotal.reduce(function (s, v) { return s + v; }, 0) * 10) / 10;
+        });
+      }
+      });
+
+      // 2. Perform tag counts
+      const plannedCount = STATE.tags.filter(t => t.status === "Planned" || t.status === "Unscheduled" || !t.status || t.status === "Draft").length;
+      const acceptedCount = STATE.tags.filter(t => t.status === "Accepted").length;
+      const rejectedCount = STATE.tags.filter(t => t.status === "Rejected").length;
+      const committedCount = STATE.tags.filter(t => t.status === "Committed").length;
+      const tagTotal = STATE.tags.length;
+
+      // Update widget status text
+      document.getElementById("kpi-tag-count").innerText = 
+        `${plannedCount} draft · ${acceptedCount} accepted · ${rejectedCount} rejected · ${committedCount} scheduled`;
+
+      // Dynamic segmented bar width calculation
+      const tagsSegBar = document.getElementById("kpi-tags-segbar");
+      if (tagsSegBar && tagTotal > 0) {
+        const dW = ((plannedCount / tagTotal) * 100).toFixed(1);
+        const aW = ((acceptedCount / tagTotal) * 100).toFixed(1);
+        const rW = ((rejectedCount / tagTotal) * 100).toFixed(1);
+        const cW = ((committedCount / tagTotal) * 100).toFixed(1);
+        tagsSegBar.innerHTML = `
+          ${committedCount > 0 ? `<div style="width:${cW}%;height:100%;background:#00d2c4;transition:width 0.4s ease;"></div>` : ''}
+          ${acceptedCount > 0 ? `<div style="width:${aW}%;height:100%;background:#149974;transition:width 0.4s ease;"></div>` : ''}
+          ${rejectedCount > 0 ? `<div style="width:${rW}%;height:100%;background:#d6455b;transition:width 0.4s ease;"></div>` : ''}
+          ${plannedCount > 0 ? `<div style="width:${dW}%;height:100%;background:rgba(255,255,255,0.18);transition:width 0.4s ease;"></div>` : ''}
+        `;
+      }
+
+      // Widget indicator state ok vs normal class
+      const tagsWidget = document.getElementById("kpi-unscheduled-tags");
+      if (tagsWidget) {
+        const allScheduled = tagTotal > 0 && committedCount === tagTotal;
+        tagsWidget.className = allScheduled ? "kpi-widget ok" : "kpi-widget";
+      }
+
+      // FIX (KPI consistency): Unscheduled avg MW must equal the sum of the
+      // location table's Product A + Product B columns, with NO 0.1 MW loss.
+      // The old formula truncated (Math.floor) AND pre-rounded the volume to a
+      // whole number (uncommittedVol.toFixed(0)) before dividing, and it drew
+      // from per-tag mw sums rather than the per-location allocations shown in
+      // the table. Both the card and the footer now derive from the same
+      // Σ(allocA + allocB) and round once at display time.
+      const unschedA = locations.reduce((sum, loc) => sum + (loc.allocA || 0), 0);
+      const unschedB = locations.reduce((sum, loc) => sum + (loc.allocB || 0), 0);
+      const unschedTotal = unschedA + unschedB;
+
+      document.getElementById("kpi-tag-mw").innerHTML = `${unschedTotal.toFixed(1)} <span class="subtext"> avg. MW</span>`;
+
+      // Total Ingested footer — identical source, so card == footer exactly.
+      document.getElementById("footer-total").innerText = `${unschedTotal.toFixed(1)} MW`;
+
+      // 3. Render Location Table Rows matching attached preview image styling
+      const tbody = document.querySelector("#detail-table tbody");
+      tbody.innerHTML = "";
+      locations.forEach(loc => {
+        const lState = getLocState(loc.name).toUpperCase();
+        
+        let statusColor = "var(--ink-dim)";
+        if (lState === 'ACCEPTED' || lState === 'COMMITTED') statusColor = "var(--green)";
+        else if (lState === 'REJECTED') statusColor = "var(--red)";
+
+        tbody.innerHTML += `
+          <tr>
+            <td class="loc-name" style="font-family: var(--sans); font-size: 11px; font-weight: 500; color: #f1f5f9;">${loc.name}</td>
+            <td style="color: ${statusColor}; font-weight: 600; font-size: 9px; text-transform: uppercase; font-family: var(--sans);">${lState}</td>
+            <td style="text-align: right; font-family: var(--mono); color: var(--green); font-weight: 500; font-size: 11px;">${loc.allocA.toFixed(1)}</td>
+            <td style="text-align: right; font-family: var(--mono); color: #ffb020; font-weight: 500; font-size: 11px;">${loc.allocB.toFixed(1)}</td>
+            <td style="text-align: right; font-family: var(--mono); color: #ffa854; font-weight: 500; font-size: 11px;">${(loc.allocA + loc.allocB).toFixed(1)}</td>
+          </tr>
+        `;
+      });
+
+      // 4. Render Spark bar chart SVG (exactly matching original dashboard code specifications)
+      const tagProfile = Array(24).fill(0);
+      STATE.tags.forEach(t => {
+        const tProfile = Array.isArray(t.hourly) ? t.hourly : getHourlyProfile(t.mw, t._curve || "baseload");
+        for (let h = 0; h < 24; h++) {
+          tagProfile[h] += tProfile[h];
+        }
+      });
+      const maxTag = Math.max(...tagProfile, 1);
+
+      let svg = `<svg viewBox="0 0 110 45" preserveAspectRatio="none" style="width:100%; height:45px; display:block;">`;
+      for (let h = 0; h < 24; h++) {
+        let committedVal = 0;
+        let uncommittedVal = 0;
+        STATE.tags.forEach(t => {
+          const tp = getHourlyProfile(t.mw, t._curve || "baseload");
+          const lState = getLocState(t.location);
+          if (lState === 'Committed') {
+            committedVal += tp[h];
+          } else {
+            uncommittedVal += tp[h];
+          }
+        });
+        
+        const committedHeight = (committedVal / maxTag) * 38;
+        const uncommittedHeight = (uncommittedVal / maxTag) * 38;
+        const x = h * 4.5;
+        const yComm = 42 - committedHeight;
+        const yUncomm = 42 - committedHeight - uncommittedHeight;
+
+        if (committedHeight > 0) {
+          svg += `<rect x="${x}" y="${yComm}" width="3.2" height="${committedHeight}" fill="var(--green)" rx="0.5" opacity="0.95"></rect>`;
+        }
+        if (uncommittedHeight > 0) {
+          svg += `<rect x="${x}" y="${yUncomm}" width="3.2" height="${uncommittedHeight}" fill="var(--orange)" rx="0.5" opacity="0.95"></rect>`;
+        }
+      }
+      
+      // Scale labels embedded inside SVG
+      svg += `</svg>`;
+
+      document.getElementById("kpi-tags-chart-container").innerHTML = svg;
+    }
+
+    // Initialize and load
+    window.addEventListener("DOMContentLoaded", () => {
+      loadStateAndRender();
+      lucide.createIcons();
+    });
+
+    // Listen to localStorage changes across windows/tabs
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'amazon_deal_schedule_planner_state') {
+        loadStateAndRender();
+      }
+    });
+  </script>
+</body>
+</html>
