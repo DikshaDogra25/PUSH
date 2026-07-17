@@ -1,21 +1,110 @@
-// OLD
-    const proportion = (loc && loc.totalMW > 0) ? (tag.mw / loc.totalMW) : 0;
-    const tagAllocA = loc ? Math.round(loc.allocA * proportion * 10) / 10 : 0;
-    const tagAllocB = loc ? Math.round(loc.allocB * proportion * 10) / 10 : 0;
+if a_entry is not None and sum(saleA) > 0:
+    rows.append({
+        "type": "SALE",
+        "leg": "A",                                   # FIX BUG#1: explicit A/B marker
+        "product": a_entry.get("product"),
+        "deal_number": f"P-{random.randint(10000000, 99999999)}",
+        "counterparty": "Amazon Energy Services",
+        "index": "TBA",
+        "mw": saleA,
+        "volume": round(sum(saleA), 4),
+    })
+if b_entry is not None and sum(saleB) > 0:
+    rows.append({
+        "type": "SALE",
+        "leg": "B",                                   # FIX BUG#1
+        ...
+    })
 
-// NEW
-    // Product A / B come from THIS tag's actual SALE legs in FINAL_PLAN, split by product
-    // label — not a pro-rated slice of the location average.
-    const __fp = (typeof FINAL_PLAN !== "undefined" && FINAL_PLAN) ? FINAL_PLAN : [];
-    let __saleA = 0, __saleB = 0;
-    __fp.filter(g => g.tag_code === tag.tag_code).forEach(g => {
-      (g.rows || []).forEach(r => {
-        if (r.type !== "SALE") return;
-        const vol  = Math.abs(Number(r.volume || 0));   // SALE volume is +; abs is belt-and-braces
-        const prod = String(r.product || "");
-        if (/\bA\b/.test(prod)) __saleA += vol;
-        else if (/\bB\b/.test(prod)) __saleB += vol;
+// BEFORE: plan-derived deals overwritten by raw list, same 'PUR-' ids
+STATE.purchaseDeals = __rows.filter(x => x.r.type === 'PURCHASE')
+  .map((x, i) => __buildDeal(x, i, 'PUR-', ...));
+// ... later:
+STATE.purchaseDeals = __pd.map(...);   // raw list clobbers it
+
+// AFTER: two lists, distinct prefixes, one resolver
+STATE.planPurchaseDeals = __rows.filter(x => x.r.type === 'PURCHASE')
+  .map((x, i) => __buildDeal(x, i, 'PPUR-', ...));   // allocated plan rows
+STATE.purchaseDeals = __pd.map(...);                  // raw deals (Purchases tab)
+
+function __findPurchaseDeal(id) {                     // top-level helper
+  return (STATE.planPurchaseDeals || []).find(p => p.id === id)
+      || (STATE.purchaseDeals || []).find(p => p.id === id);
+}
+// every `STATE.purchaseDeals.find(p => p.id === …)` rerouted to __findPurchaseDeal
+
+
+// BEFORE (SaleDeal tooltip): fake curve scaled by the 24h TOTAL
+const isA = /\bA\b/.test(String(deal.product || ''));
+const profile = getHourlyProfile(Math.abs(vol), __tg._curve || 'baseload');
+
+// AFTER: real stored MW1..MW24 from the allocated FINAL_PLAN row + backend leg
+const isA = deal.leg ? (deal.leg === 'A') : /\bA\b/.test(String(deal.product || ''));
+const profile = ('MW1' in deal)
+  ? Array.from({ length: 24 }, (_, h) => Number(deal['MW' + (h + 1)]) || 0)
+  : getHourlyProfile(Math.abs(vol), __tg._curve || 'baseload');   // fallback only
+
+// NEW: Source_Temp-aware resolver (raw source -> aggregated location row)
+function locationNameForSource(srcName) {
+  const sName = String(srcName || '').trim();
+  if (!sName) return null;
+  const loc = (STATE.locations || []).find(function (l) {
+    if (l.name === sName) return true;
+    const members = String(l.Source_Temp || '').split(',')
+      .map(x => x.trim()).filter(Boolean);
+    return members.indexOf(sName) !== -1;
+  });
+  return loc ? loc.name : null;
+}
+
+// setScheduleState — after the existing tag sync:
+const sch = STATE.schedules.find(x => x.id === schId);
+const locName = locationNameForSource((sch && sch.location) || g.source);
+if (locName && getLocationState(locName) !== 'Committed') {
+  STATE.locationStates[locName] = state;   // <-- the missing propagation
+}
+// renderAll() at the end of setScheduleState (already there) repaints both tabs immediately
+
+
+// bulkAccept/bulkReject — BEFORE: wrong key, and schedule state never recorded
+STATE.locationStates[sch.location] = 'Accepted';
+
+// AFTER:
+STATE.scheduleStates[schId] = 'Accepted';   // status column in tab 1 now updates too
+const locName = locationNameForSource(sch.location) || sch.location;
+STATE.locationStates[locName] = 'Accepted';
+
+
+// BEFORE: referenced undefined byCP, never populated the set -> always empty
+function getAllocationCPs() {
+  const set = new Set();
+  try {
+    if (RESULT_ALLOCATION) {
+      (RESULT_ALLOCATION.ProductA || []).forEach(function (x) {
+        const e = (byCP[cp] = byCP[cp] || {});   // ReferenceError, swallowed
+        ...
       });
-    });
-    const tagAllocA = Math.round(__saleA * 10) / 10;
-    const tagAllocB = Math.round(__saleB * 10) / 10;
+    }
+  } catch (e) { }
+  return set;                                     // always Set(0)
+}
+
+// AFTER:
+function getAllocationCPs() {
+  const set = new Set();
+  try {
+    if (typeof RESULT_ALLOCATION !== "undefined" && RESULT_ALLOCATION) {
+      [].concat(RESULT_ALLOCATION.ProductA || [], RESULT_ALLOCATION.ProductB || [])
+        .forEach(function (x) {
+          const cp = (x.CP || "").trim();
+          if (cp && cp.toLowerCase() !== 'all') set.add(cp);  // skip aggregate row
+        });
+    }
+  } catch (e) { /* injection not ready */ }
+  return set;
+}
+
+// getLocationState — Source_Temp-consistent tag lookup:
+const locTags = (typeof tagsForLocName === 'function')
+  ? tagsForLocName(locName)                      // resolves via Source_Temp membership
+  : STATE.tags.filter(t => t.location === locName);
