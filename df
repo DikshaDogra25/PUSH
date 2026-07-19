@@ -1,1 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    color: #17375D;
+    line-height: 1.4;
+    max-width: 1050px;
+  }
+  p { margin: 10px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 6px;
+  }
+  td {
+    border: 1px solid #8DB4E2;
+    padding: 4px 10px;
+    vertical-align: top;
+  }
+  .section-header {
+    background-color: #DBE5F1;
+    font-weight: bold;
+    color: #17375D;
+  }
+  ul {
+    margin: 4px 0;
+    padding-left: 22px;
+    list-style-type: square;
+  }
+  li { margin: 3px 0; }
+</style>
+</head>
+<body>
 
+<p>Hello All,</p>
+
+<p>Please find meeting minutes summarizing what we have covered in yesterday&rsquo;s meeting.</p>
+
+<p>Navjot shared updates on the Platform and Brookfield roadmap, we reviewed the MVP overview, and covered updates on the solution structure, CI/CD pipeline, and the Platform Prompt Tracer.</p>
+
+<table>
+  <tr><td class="section-header">Platform &amp; Brookfield Roadmap:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Navjot shared updates on the Platform and Brookfield roadmap.</li>
+      <li>MVP dates are impacted due to the revamp of the UI/UX design for use case 1.1.</li>
+      <li>Abhi to share 2&ndash;3 new designs for the grids.</li>
+      <li>Ryan will work with Navjot to generate the new UI.</li>
+      <li>7/28 is the target date for MVP 1.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">MVP Overview:</td></tr>
+  <tr><td>
+    <ul>
+      <li>MVP1 (use case 1.1) &ndash; dependency: connect Genie to a real WT DB for any date range.</li>
+      <li>MVP2 (use case 1.8) &ndash; dependency: Oasis scraping is pending from Aniket.</li>
+      <li>Ravi to get the scraping agent into the platform.</li>
+      <li>Use case 2.14 &ndash; to be covered in a separate meeting; discuss in Monday&rsquo;s platform meeting.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">Solution Structure &amp; CI/CD Pipeline:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Recreated the solution structure.</li>
+      <li>Add OATI to the namespace in the platform structure.</li>
+      <li>Ravi to review the CI pipeline for semantic versioning, etc.</li>
+      <li>Continuous deployment will be set up.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">Platform Prompt Tracer:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Gurjeet explained all the components of the Platform Prompt Tracer.</li>
+      <li>It was discussed to use a graphical representation as well.</li>
+      <li>S3 is a paid AWS service; MinIO replicates everything to open source &ndash; it is the open-source (OS) version.</li>
+      <li>Ravi and Avantika to share what they are capturing for the CAISO ML flow.</li>
+    </ul>
+  </td></tr>
+
+  <tr><td class="section-header">Action Items:</td></tr>
+  <tr><td>
+    <ul>
+      <li>Abhi to share 2&ndash;3 new grid designs.</li>
+      <li>Ryan to work with Navjot on the new UI.</li>
+      <li>Ravi to bring the scraping agent into the platform.</li>
+      <li>Ravi to review the CI pipeline (semantic versioning, etc.).</li>
+      <li>Set up continuous deployment.</li>
+      <li>Ravi and Avantika to share what they are capturing for the CAISO ML flow.</li>
+      <li>Discuss use case 2.14 in Monday&rsquo;s platform meeting.</li>
+    </ul>
+  </td></tr>
+</table>
+
+</body>
+</html>
