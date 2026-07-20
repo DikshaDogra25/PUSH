@@ -1,26 +1,11 @@
-def _apply_product_index(deal, leg):
-    """
-    Option B: the sale query returns two otherwise-identical rows that differ only
-    in IndexName (…_Product_A vs …_Product_B). We keep a single template (result[0])
-    and stamp the correct suffix onto IndexName per leg.
+# leg A
+"mw":     Deal_Schedule_Plan._deal_mw_list(sdA) if sdA else saleA,
+"volume": round(sum(Deal_Schedule_Plan._deal_mw_list(sdA)), 4) if sdA else round(sum(saleA), 4),
+# leg B
+"mw":     Deal_Schedule_Plan._deal_mw_list(sdB) if sdB else saleB,
+"volume": round(sum(Deal_Schedule_Plan._deal_mw_list(sdB)), 4) if sdB else round(sum(saleB), 4),
 
-    Suffix-safe: strips any existing _Product_A / _Product_B before appending, so
-    it is correct whether result[0] happened to be the A row or the B row.
-    """
-    if not isinstance(deal, dict):
-        return deal
-    idx = str(deal.get("IndexName", "") or "").strip()
-    for suffix in ("_Product_A", "_Product_B"):
-        if idx.endswith(suffix):
-            idx = idx[: -len(suffix)]
-            break
-    deal["IndexName"] = f"{idx}_Product_{leg}"
-    return deal
-
-dealA["Trade Date"] = (date.today() - timedelta(days=2)).strftime("%m/%d/%Y")
-                    _apply_product_index(dealA, "A")   # IndexName -> …_Product_A
-                    saledealA = dealA
-...
-                    dealB["Trade Date"] = (date.today() - timedelta(days=2)).strftime("%m/%d/%Y")
-                    _apply_product_index(dealB, "B")   # IndexName -> …_Product_B
-                    saledealB = dealB
+@staticmethod
+def _deal_mw_list(deal):
+    """MW1..MW24 from a matched sale deal as a 24-length list (None/NaN -> 0.0)."""
+    return [Deal_Schedule_Plan._mw(deal, he) for he in range(1, 25)]
