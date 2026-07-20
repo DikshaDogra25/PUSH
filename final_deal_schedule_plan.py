@@ -1,9 +1,13 @@
 import math, random
-from dataclasses import dataclass
 from typing import Any
 
+# CHANGED (review): named tolerances instead of magic numbers scattered in the code.
+EPS = 1e-9          # "effectively zero" for allocation loops
+BALANCE_TOL = 0.01  # tolerance when deciding PLANNED vs IMBALANCE
 
-@dataclass
+
+# CHANGED (review): dropped @dataclass — the class has no fields, only
+# static/class methods, so the decorator was a no-op.
 class Deal_Schedule_Plan:
 
     @staticmethod
@@ -20,15 +24,21 @@ class Deal_Schedule_Plan:
 
     @staticmethod
     def _deal_mw_list(deal):
-        """MW1..MW24 from a matched sale deal as a 24-length list (None/NaN -> 0.0)."""
-        return [Deal_Schedule_Plan._mw(deal, he) for he in range(1, 25)]
+        """MW1..MW25 from a matched sale deal as a 25-length list.
+
+        CHANGED (review, answer #2): was MW1..MW24 (24 entries) while the tag
+        allocation arrays run HE1..HE25 (25 entries), so deal-sourced sale rows
+        had a shorter `mw` list and their volume silently dropped HE25.
+        Missing / None / NaN MW25 (or any hour) still resolves to 0.0 via _mw.
+        """
+        return [Deal_Schedule_Plan._mw(deal, he) for he in range(1, 26)]
 
     @staticmethod
     def _clean(s):
         return str(s).strip() if s is not None else ""
 
     # ------------------------------------------------------------------ #
-    # NEW: resolve the ACTUAL sale deal (from get_sale_deal_data via     #
+    # Resolve the ACTUAL sale deal (from get_sale_deal_data via          #
     # fetch_sales_deal/build_deals) for a given CP + Product + leg.      #
     #                                                                    #
     # actualsaledeal shape (built in nodes.build_deals):                 #
@@ -72,8 +82,36 @@ class Deal_Schedule_Plan:
                 return deal
         return None
 
+    # ------------------------------------------------------------------ #
+    # CHANGED (review): the SALE leg-A and leg-B row blocks were ~30      #
+    # duplicated lines; factored into this single helper. Output shape    #
+    # and fallbacks are identical to the old inline blocks.               #
+    # Sale deal_number stays random per answer #4.                        #
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _sale_row(leg, entry, alloc, sd):
+        mw = Deal_Schedule_Plan._deal_mw_list(sd) if sd else alloc
+        return {
+            "type": "SALE",
+            "leg": leg,                                     # authoritative A/B marker
+            "deal_number": f"P-{random.randint(10000000, 99999999)}",
+            # fall back to "Amazon Energy Services" / allocation entry's product
+            "counterparty": (Deal_Schedule_Plan._clean(sd.get("CP")) or "Amazon Energy Services") if sd else "Amazon Energy Services",
+            "product":      (Deal_Schedule_Plan._clean(sd.get("Product")) or entry.get("product")) if sd else entry.get("product"),
+            "index":        (Deal_Schedule_Plan._clean(sd.get("IndexName")) or "N/A") if sd else "N/A",
+            # sale hover: Book<-Path, Contract<-ContractName, Zone<-DPName when the
+            # actual sale deal is present; empty otherwise so the UI keeps its fallback.
+            "book":     Deal_Schedule_Plan._clean(sd.get("Path")) if sd else "",
+            "contract": Deal_Schedule_Plan._clean(sd.get("ContractName")) if sd else "",
+            "zone":     Deal_Schedule_Plan._clean(sd.get("DPName")) if sd else "",
+            # when the actual sale deal is present, MW1..MW25 and the total volume
+            # come from it; otherwise keep the allocation (productList) values.
+            "mw":     mw,
+            "volume": round(sum(mw), 4),
+        }
+
     @classmethod
-    def deal_schedule_plan(self, saledeals, purchasedeals, tagdata, actualsaledeal) -> Any:
+    def deal_schedule_plan(cls, saledeals, purchasedeals, tagdata, actualsaledeal) -> list[dict[str, Any]]:
         """
         Build the Final Deal Schedule Plan.
 
@@ -81,13 +119,21 @@ class Deal_Schedule_Plan:
         - PURCHASE: match deals by tag.PurchaseCounterPartyName == deal.CounterParty,
           in list order; consumed once touched.
         - SALE: allocation split from Product A pool first, overflow to Product B.
-          NEW: each sale leg is bound to the matching ACTUAL sale deal
-          (matched on CP + Product against `actualsaledeal`); the row's
-          "counterparty", "product" and "index" are taken from that deal's
-          "CP", "Product" and "IndexName" columns. If no matching deal is
-          found: counterparty falls back to "Amazon Energy Services",
-          product to the allocation entry's product, and index to "N/A".
+          Each sale leg is bound to the matching ACTUAL sale deal (matched on
+          CP + Product against `actualsaledeal`); the row's "counterparty",
+          "product" and "index" are taken from that deal's "CP", "Product" and
+          "IndexName" columns. If no matching deal is found: counterparty falls
+          back to "Amazon Energy Services", product to the allocation entry's
+          product, and index to "N/A".
+        - CHANGED (review, answer #3): EVERY source pool (not just "All") is
+          drawn down as tags allocate against it, so two tags sharing a source
+          split the pool instead of double-counting it. Example: source pool
+          A=100 MW; tag1 takes 80 -> pool 20 left; tag2 needing 40 gets 20
+          from A and overflows 20 to B.
         - Purchase volume negative, sale volume positive. Shortfalls -> IMBALANCE.
+        - CHANGED (review, answer #1): a tag is PLANNED when no purchase
+          shortfall remains for any hour (was: purchase total ~ 0 AND ~ need
+          total, which could never pass for a non-zero tag).
         """
         HES = list(range(1, 26))
         purchasedeals = purchasedeals or []
@@ -116,7 +162,9 @@ class Deal_Schedule_Plan:
                     "sink": sink,
                     "path": market_path,
                     "status": "IMBALANCE",
-                    "net_volume": [],
+                    # CHANGED (review): was [] (a list) while every other tag
+                    # emits a float -> inconsistent type for the HTML consumer.
+                    "net_volume": 0.0,
                     "rows": [],
                 })
                 continue
@@ -125,7 +173,7 @@ class Deal_Schedule_Plan:
             remaining = need[:]
             purchase_total = [0.0] * len(HES)
             for i, pd in enumerate(purchasedeals):
-                if all(r <= 1e-9 for r in remaining):
+                if all(r <= EPS for r in remaining):
                     break
                 if consumed[i] or Deal_Schedule_Plan._clean(pd.get("CounterParty")) != cp:
                     continue
@@ -136,9 +184,11 @@ class Deal_Schedule_Plan:
                     if take > 0:
                         alloc[j] = round(take, 4)
                         remaining[j] = round(remaining[j] - take, 6)
-                        purchase_total[j] += take
+                        # CHANGED (review): keep the running total rounded the
+                        # same way as `remaining` to avoid float drift.
+                        purchase_total[j] = round(purchase_total[j] + take, 6)
                         used = True
-                consumed[i] = True
+                consumed[i] = True  # consumed once touched (documented behavior)
                 if used:
                     rows.append({
                         "type": "PURCHASE",
@@ -146,7 +196,7 @@ class Deal_Schedule_Plan:
                         "counterparty": Deal_Schedule_Plan._clean(pd.get("CounterParty")),
                         "product": Deal_Schedule_Plan._clean(pd.get("Product") or pd.get("DealType")),
                         "index": Deal_Schedule_Plan._clean(pd.get("IndexName")),
-                        # NEW (purchase hover): source-column values for the tooltip.
+                        # purchase hover: source-column values for the tooltip.
                         "contract": Deal_Schedule_Plan._clean(pd.get("Contract")),   # Contract column
                         "market":   Deal_Schedule_Plan._clean(pd.get("Market")),     # Market column
                         "zone":     Deal_Schedule_Plan._clean(pd.get("Zone")),       # Zone column
@@ -155,9 +205,10 @@ class Deal_Schedule_Plan:
                     })
 
             # ---------- SALE: Product A first, overflow to Product B ----------
-            src_key = Deal_Schedule_Plan._clean(tag.get("Source"))
-            a_entry = a_by_source.get(src_key)
-            b_entry = b_by_source.get(src_key)
+            # CHANGED (review): `src_key` was the same value as `source`
+            # computed twice; reuse `source`.
+            a_entry = a_by_source.get(source)
+            b_entry = b_by_source.get(source)
             source_all = a_entry is None and b_entry is None
             if source_all:
                 a_entry = a_by_source.get("All")
@@ -179,63 +230,32 @@ class Deal_Schedule_Plan:
                 b = b if b > 0 else 0.0
                 saleB[j] = round(b, 4)
                 sale_total[j] = a + b
-                if source_all:
-                    if a_hours:
-                        a_hours[he] = round(max(0.0, avail_a - a), 4)
-                    if b_hours:
-                        b_hours[he] = round(max(0.0, avail_b - b), 4)
+                # CHANGED (review, answer #3): draw down EVERY pool, not just
+                # the shared "All" pool, so a later tag with the same source
+                # only sees what is left.
+                if a_hours:
+                    a_hours[he] = round(max(0.0, avail_a - a), 4)
+                if b_hours:
+                    b_hours[he] = round(max(0.0, avail_b - b), 4)
 
-            # NEW: CP used for the actual-sale-deal lookup ("All" pool tags have
+            # CP used for the actual-sale-deal lookup ("All" pool tags have
             # no per-CP sale deal, so they resolve to N/A by design).
-            lookup_cp = "All" if source_all else src_key
+            lookup_cp = "All" if source_all else source
 
             if a_entry is not None and sum(saleA) > 0:
-                # NEW: bind the leg to the fetched sale deal matched on CP + Product
                 sdA = Deal_Schedule_Plan._find_actual_sale_deal(
                     actualsaledeal, lookup_cp, a_entry.get("product"), "A")
-                rows.append({
-                    "type": "SALE",
-                    "leg": "A",                                     # authoritative A marker
-                    "deal_number": f"P-{random.randint(10000000, 99999999)}",
-                    # per screenshot: fall back to "Amazon Energy Services" / allocation product
-                    "counterparty": (Deal_Schedule_Plan._clean(sdA.get("CP")) or "Amazon Energy Services") if sdA else "Amazon Energy Services",
-                    "product":      (Deal_Schedule_Plan._clean(sdA.get("Product")) or a_entry.get("product")) if sdA else a_entry.get("product"),
-                    "index":        (Deal_Schedule_Plan._clean(sdA.get("IndexName")) or "N/A") if sdA else "N/A",
-                    # NEW (sale hover): Book<-Path, Contract<-ContractName, Zone<-DPName when the
-                    # actual Sale Deal A is present; empty otherwise so the UI keeps its fallback.
-                    "book":     Deal_Schedule_Plan._clean(sdA.get("Path")) if sdA else "",
-                    "contract": Deal_Schedule_Plan._clean(sdA.get("ContractName")) if sdA else "",
-                    "zone":     Deal_Schedule_Plan._clean(sdA.get("DPName")) if sdA else "",
-                    # NEW: when the actual Sale Deal A is present, take MW1..MW24 and the
-                    # total volume from it; otherwise keep the allocation (productList) values.
-                    "mw":     Deal_Schedule_Plan._deal_mw_list(sdA) if sdA else saleA,
-                    "volume": round(sum(Deal_Schedule_Plan._deal_mw_list(sdA)), 4) if sdA else round(sum(saleA), 4),
-                })
+                rows.append(Deal_Schedule_Plan._sale_row("A", a_entry, saleA, sdA))
 
             if b_entry is not None and sum(saleB) > 0:
                 sdB = Deal_Schedule_Plan._find_actual_sale_deal(
                     actualsaledeal, lookup_cp, b_entry.get("product"), "B")
-                rows.append({
-                    "type": "SALE",
-                    "leg": "B",                                     # authoritative B marker
-                    "deal_number": f"P-{random.randint(10000000, 99999999)}",  # Deal_Schedule_Plan._sale_deal_number("B", src_key)
-                    # per screenshot: same fallbacks as leg A (bound to SDeal_B, see note)
-                    "counterparty": (Deal_Schedule_Plan._clean(sdB.get("CP")) or "Amazon Energy Services") if sdB else "Amazon Energy Services",
-                    "product":      (Deal_Schedule_Plan._clean(sdB.get("Product")) or b_entry.get("product")) if sdB else b_entry.get("product"),
-                    "index":        (Deal_Schedule_Plan._clean(sdB.get("IndexName")) or "N/A") if sdB else "N/A",
-                    # NEW (sale hover): Book<-Path, Contract<-ContractName, Zone<-DPName (Sale Deal B).
-                    "book":     Deal_Schedule_Plan._clean(sdB.get("Path")) if sdB else "",
-                    "contract": Deal_Schedule_Plan._clean(sdB.get("ContractName")) if sdB else "",
-                    "zone":     Deal_Schedule_Plan._clean(sdB.get("DPName")) if sdB else "",
-                    # NEW: same as leg A, sourced from Sale Deal B when present.
-                    "mw":     Deal_Schedule_Plan._deal_mw_list(sdB) if sdB else saleB,
-                    "volume": round(sum(Deal_Schedule_Plan._deal_mw_list(sdB)), 4) if sdB else round(sum(saleB), 4),
-                })
+                rows.append(Deal_Schedule_Plan._sale_row("B", b_entry, saleB, sdB))
 
             # ---------- balance / status ----------
-            ptot = round(sum(purchase_total), 4)
-            need_total = round(sum(need), 4)
-            balanced = abs(ptot - 0) < 0.01 and abs(ptot - need_total) < 0.01
+            # CHANGED (review, answer #1): PLANNED == "no shortfall remains
+            # after purchase allocation" (per-hour, within tolerance).
+            balanced = all(r <= BALANCE_TOL for r in remaining)
             net = round(sum(r["volume"] for r in rows), 4)
 
             plan.append({
