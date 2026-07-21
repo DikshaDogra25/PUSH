@@ -1,9 +1,13 @@
-uv run python -c "import sys; print(sys.executable)"
-2. Point VS Code at exactly that interpreter: Ctrl+Shift+P → "Python: Select Interpreter" → "Enter interpreter path" → paste the path from step 1 (it'll be your .venv\Scripts\python.exe).
-3. Reload: Ctrl+Shift+P → "Developer: Reload Window". The four warnings should disappear.
-Now, one real code issue to sort out separately. Notice you changed line 3 from from genie.agents.base import BaseAgent to from genie.agents import BaseAgent. Only one of those is correct depending on whether BaseAgent is re-exported at the package level. Confirm before committing:
-powershelluv run python -c "from genie.agents import BaseAgent; print('agents ok')"
-uv run python -c "from genie.agents.base import BaseAgent; print('agents.base ok')"
-uv run python -c "from genie.application.state import AgentState; print('state ok')"
-uv run python -c "from genie.registry import AgentMeta, FieldSpec, Skill; print('registry ok')"
-uv run python -c "from genie.agents.server import parse_mcp_output; print('server ok')
+const locPurchases = STATE.purchaseDeals.filter(p => p.location === loc.name);
+locPurchases.forEach(p => {
+  const prof = getHourlyProfile(p.mw, linkedTag ? linkedTag._curve : 'baseload'); // synthesized
+  for (let h=0;h<24;h++) purchasesTotal[h] += prof[h];
+});
+const salesTotal[h] = loc.profileA[h] + loc.profileB[h];
+
+const __members = new Set(String(loc.Source_Temp||'').split(',').map(x=>x.trim()).filter(Boolean));
+__members.add(loc.name);
+const __belongs = d => !!d && (d.location===loc.name || __members.has(d.location) || __members.has(d.market));
+const __hMW = (d,h) => Number(d['MW'+(h+1)]) || 0;
+(STATE.planPurchaseDeals||[]).filter(__belongs).forEach(p => { for (let h=0;h<24;h++) purchasesTotal[h] += Math.abs(__hMW(p,h)); });
+// sales summed per leg from the actual sale deals (fallback to loc.profileA/B if none resolve)
