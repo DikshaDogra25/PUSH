@@ -1,35 +1,15 @@
-today = date.today()
- 
-    # 1) Relative words straight from the latest human prompt (dates may be None).
-    try:
-        for m in reversed((state or {}).get("messages", []) or []):
-            if getattr(m, "type", "") != "human":
-                continue
-            content = getattr(m, "content", "")
-            text = content if isinstance(content, str) else " ".join(str(p) for p in (content or []))
-            low = text.lower()
-            if "yesterday" in low:
-                return "yesterday"
-            if "today" in low:
-                return "today"
-            break  # only the most recent human turn is the active request
-    except Exception:
-        pass
- 
-    # 2) Fall back to the resolved Start_Date / End_Date (explicit calendar date).
-    raw = None
-    try:
-        raw = (state or {}).get("Start_Date") or (state or {}).get("End_Date")
-    except Exception:
-        raw = None
-    if not raw:
-        return "this date"
-    try:
-        d = parse_date(str(raw))
-    except (ValueError, TypeError):
-        return "this date"
-    if d == today:
-        return "today"
-    if d == today - timedelta(days=1):
-        return "yesterday"
-    return f"{d.day} {d.strftime('%B')}"
+Review unscheduled Amazon tags for 03/05 and create sale deals.
+Run the Amazon deal creation workflow for 03/15.
+Process Amazon purchase and sale deals for 03/05 with the 150 MW/h Product A split.
+Create and schedule Amazon deals for 03/15. Apply the Product A and Product B contract rules.
+Link unscheduled Amazon tags to purchase and sale deals for 03/05.
+Build the Amazon deal schedule plan for 03/15 and show the Product A / Product B allocation.
+Generate sale deals A and B for 03/05 using the matching purchase deals.
+Review yesterday's unscheduled Amazon tags and create sale deals.
+Run the Amazon deal creation workflow for yesterday.
+Process today's Amazon purchase and sale deals with the 150 MW/h Product A split.
+Create and schedule Amazon deals for yesterday. Apply the Product A and Product B contract rules.
+Link today's unscheduled Amazon tags to purchase and sale deals.
+Aggregate the Amazon location allocations and split them across Product A and Product B.
+Show the final deal schedule plan and highlight any schedules that are still unbalanced.
+Run the full Amazon scheduling process and give me the preview and final dashboards.
