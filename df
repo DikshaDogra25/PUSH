@@ -1,92 +1,33 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  body {
-    font-family: Calibri, "Segoe UI", Arial, sans-serif;
-    font-size: 14px;
-    color: #17375D;
-    line-height: 1.4;
-    max-width: 1050px;
-  }
-  p { margin: 10px 0; }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 6px;
-  }
-  td {
-    border: 1px solid #8DB4E2;
-    padding: 4px 10px;
-    vertical-align: top;
-  }
-  .section-header {
-    background-color: #DBE5F1;
-    font-weight: bold;
-    color: #17375D;
-  }
-  ul {
-    margin: 4px 0;
-    padding-left: 22px;
-    list-style-type: square;
-  }
-  li { margin: 3px 0; }
-</style>
-</head>
-<body>
+def _friendly_when(state) -> str:
+    """
+    Human-friendly label for the requested schedule date, taken from the agent
+    state's Start_Date (falls back to End_Date). Returns:
+      - "today"       if the date is today
+      - "yesterday"   if it is the previous day
+      - "<d> <Month>" otherwise, e.g. "1 June"
+      - "this date"   if no/invalid date is available (safe fallback)
+    """
+    raw = None
+    try:
+        raw = (state or {}).get("Start_Date") or (state or {}).get("End_Date")
+    except Exception:
+        raw = None
+    if not raw:
+        return "this date"
+    try:
+        d = parse_date(str(raw))
+    except (ValueError, TypeError):
+        return "this date"
+    today = date.today()
+    if d == today:
+        return "today"
+    if d == today - timedelta(days=1):
+        return "yesterday"
+    return f"{d.day} {d.strftime('%B')}"
 
-<p>Hello All,</p>
-
-<p>Please find meeting minutes summarizing what we have covered in today&rsquo;s meeting.</p>
-
-<p>We covered the dev environment setup, the new design for use case 1.1, and the migration plan for use case 2.14.</p>
-
-<table>
-  <tr><td class="section-header">Dev Environment:</td></tr>
-  <tr><td>
-    <ul>
-      <li>Set up the dev environment.</li>
-    </ul>
-  </td></tr>
-
-  <tr><td class="section-header">Use Case 1.1 &ndash; New Design:</td></tr>
-  <tr><td>
-    <ul>
-      <li>Discussed the new design.</li>
-      <li>Add the new case for navigating to missing units.</li>
-      <li>Navjot to use the virtual tool to re-generate the HTML dashboard.</li>
-      <li>A preview HTML is to be created and integrated into the chatbot for missing meter data.</li>
-      <li>Make it more dynamic.</li>
-    </ul>
-  </td></tr>
-
-  <tr><td class="section-header">Use Case 2.14 &ndash; SQL Server to MongoDB Migration:</td></tr>
-  <tr><td>
-    <ul>
-      <li>Migration plan from SQL Server to MongoDB.</li>
-      <li>Come up with a new schema structure for MongoDB.</li>
-      <li>Use Claude to check the schema structure.</li>
-      <li>Set up a dedicated meeting tomorrow.</li>
-      <li>Bring the trained model into the architecture.</li>
-      <li>Bring in the RAG.</li>
-      <li>Ravi and Avantika to come up with the best approach for schema, descriptions, names, etc.</li>
-    </ul>
-  </td></tr>
-
-  <tr><td class="section-header">Action Items:</td></tr>
-  <tr><td>
-    <ul>
-      <li>Set up the dev environment.</li>
-      <li>Add navigation to missing units (use case 1.1).</li>
-      <li>Navjot to re-generate the HTML dashboard using the virtual tool.</li>
-      <li>Create and integrate a preview HTML into the chatbot for missing meter data.</li>
-      <li>Ravi and Avantika to propose the best approach for the schema, descriptions, and names.</li>
-      <li>Use Claude to validate the MongoDB schema structure.</li>
-      <li>Set up a dedicated meeting tomorrow for the use case 2.14 migration.</li>
-    </ul>
-  </td></tr>
-</table>
-
-</body>
-</html>
+responsemessage = ""
+when = _friendly_when(state)   # "today" / "yesterday" / "<d> <Month>"
+if len(data) < 2:
+    responsemessage = f"No unscheduled tags found for {when}."
+elif len(data) < 1:
+    responsemessage = f"Purchase deals not found for {when}."
