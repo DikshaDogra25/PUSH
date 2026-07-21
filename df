@@ -1,15 +1,23 @@
-Review unscheduled Amazon tags for 03/05 and create sale deals.
-Run the Amazon deal creation workflow for 03/15.
-Process Amazon purchase and sale deals for 03/05 with the 150 MW/h Product A split.
-Create and schedule Amazon deals for 03/15. Apply the Product A and Product B contract rules.
-Link unscheduled Amazon tags to purchase and sale deals for 03/05.
-Build the Amazon deal schedule plan for 03/15 and show the Product A / Product B allocation.
-Generate sale deals A and B for 03/05 using the matching purchase deals.
-Review yesterday's unscheduled Amazon tags and create sale deals.
-Run the Amazon deal creation workflow for yesterday.
-Process today's Amazon purchase and sale deals with the 150 MW/h Product A split.
-Create and schedule Amazon deals for yesterday. Apply the Product A and Product B contract rules.
-Link today's unscheduled Amazon tags to purchase and sale deals.
-Aggregate the Amazon location allocations and split them across Product A and Product B.
-Show the final deal schedule plan and highlight any schedules that are still unbalanced.
-Run the full Amazon scheduling process and give me the preview and final dashboards.
+# The requested date is carried in the get_purchase_deal_data tool call args
+# (start_date/end_date), NOT in state["Start_Date"]/["End_Date"]. Pull it from
+# the latest AIMessage's tool_calls, then fall back to state keys for safety.
+raw = None
+try:
+    for m in reversed((state or {}).get("messages", []) or []):
+        for tc in (getattr(m, "tool_calls", None) or []):
+            args = (tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)) or {}
+            cand = args.get("start_date") or args.get("end_date")
+            if cand:
+                raw = cand
+                break
+        if raw:
+            break
+except Exception:
+    raw = None
+if not raw:                       # safety fallback to state keys
+    try:
+        raw = (state or {}).get("Start_Date") or (state or {}).get("End_Date")
+    except Exception:
+        raw = None
+if not raw:
+    return "this date"
