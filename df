@@ -1,12 +1,9 @@
-git status
-git branch
-git log --oneline -5
-
-
-git checkout main            # or master / develop — your platform's main branch
-git merge <the-branch-you-pulled-into>
-
-git mv packages/genie-agent-dealschedule/src/genie_agent_dealschedule/build_dashboard.py \
-       src/genie/agents/dealschedule/build_dashboard.py
-# ...repeat for each file...
-git commit -m "restructure dealschedule changes into platform layout"
+uv run python -c "import sys; print(sys.executable)"
+2. Point VS Code at exactly that interpreter: Ctrl+Shift+P → "Python: Select Interpreter" → "Enter interpreter path" → paste the path from step 1 (it'll be your .venv\Scripts\python.exe).
+3. Reload: Ctrl+Shift+P → "Developer: Reload Window". The four warnings should disappear.
+Now, one real code issue to sort out separately. Notice you changed line 3 from from genie.agents.base import BaseAgent to from genie.agents import BaseAgent. Only one of those is correct depending on whether BaseAgent is re-exported at the package level. Confirm before committing:
+powershelluv run python -c "from genie.agents import BaseAgent; print('agents ok')"
+uv run python -c "from genie.agents.base import BaseAgent; print('agents.base ok')"
+uv run python -c "from genie.application.state import AgentState; print('state ok')"
+uv run python -c "from genie.registry import AgentMeta, FieldSpec, Skill; print('registry ok')"
+uv run python -c "from genie.agents.server import parse_mcp_output; print('server ok')
