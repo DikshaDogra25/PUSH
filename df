@@ -1,23 +1,12 @@
-# The requested date is carried in the get_purchase_deal_data tool call args
-# (start_date/end_date), NOT in state["Start_Date"]/["End_Date"]. Pull it from
-# the latest AIMessage's tool_calls, then fall back to state keys for safety.
-raw = None
-try:
-    for m in reversed((state or {}).get("messages", []) or []):
-        for tc in (getattr(m, "tool_calls", None) or []):
-            args = (tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", None)) or {}
-            cand = args.get("start_date") or args.get("end_date")
-            if cand:
-                raw = cand
-                break
-        if raw:
-            break
-except Exception:
-    raw = None
-if not raw:                       # safety fallback to state keys
-    try:
-        raw = (state or {}).get("Start_Date") or (state or {}).get("End_Date")
-    except Exception:
-        raw = None
-if not raw:
-    return "this date"
+git status
+git branch
+git log --oneline -5
+
+
+git checkout main            # or master / develop — your platform's main branch
+git merge <the-branch-you-pulled-into>
+
+git mv packages/genie-agent-dealschedule/src/genie_agent_dealschedule/build_dashboard.py \
+       src/genie/agents/dealschedule/build_dashboard.py
+# ...repeat for each file...
+git commit -m "restructure dealschedule changes into platform layout"
