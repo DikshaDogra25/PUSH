@@ -1,12 +1,22 @@
-def _friendly_when(state) -> str:
-    """
-    Human-friendly label for the requested schedule date, taken from the agent
-    state's Start_Date (falls back to End_Date). Returns:
-      - "today"       if the date is today
-      - "yesterday"   if it is the previous day
-      - "<d> <Month>" otherwise, e.g. "1 June"
-      - "this date"   if no/invalid date is available (safe fallback)
-    """
+today = date.today()
+ 
+    # 1) Relative words straight from the latest human prompt (dates may be None).
+    try:
+        for m in reversed((state or {}).get("messages", []) or []):
+            if getattr(m, "type", "") != "human":
+                continue
+            content = getattr(m, "content", "")
+            text = content if isinstance(content, str) else " ".join(str(p) for p in (content or []))
+            low = text.lower()
+            if "yesterday" in low:
+                return "yesterday"
+            if "today" in low:
+                return "today"
+            break  # only the most recent human turn is the active request
+    except Exception:
+        pass
+ 
+    # 2) Fall back to the resolved Start_Date / End_Date (explicit calendar date).
     raw = None
     try:
         raw = (state or {}).get("Start_Date") or (state or {}).get("End_Date")
@@ -18,16 +28,8 @@ def _friendly_when(state) -> str:
         d = parse_date(str(raw))
     except (ValueError, TypeError):
         return "this date"
-    today = date.today()
     if d == today:
         return "today"
     if d == today - timedelta(days=1):
         return "yesterday"
     return f"{d.day} {d.strftime('%B')}"
-
-responsemessage = ""
-when = _friendly_when(state)   # "today" / "yesterday" / "<d> <Month>"
-if len(data) < 2:
-    responsemessage = f"No unscheduled tags found for {when}."
-elif len(data) < 1:
-    responsemessage = f"Purchase deals not found for {when}."
