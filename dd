@@ -1,6 +1,1 @@
-"index": Deal_Schedule_Plan._clean(pd.get("IndexName")),
-# NEW: the deal's ACTUAL status from SQL, so the dashboard
-# stops hard-coding "Planned". Falls back to "Draft" when
-# the proc doesn't return a status column.
-"status": (Deal_Schedule_Plan._clean(
-    pd.get("Status") or pd.get("DealStatus") or pd.get("DealState")) or "Draft"),
+
