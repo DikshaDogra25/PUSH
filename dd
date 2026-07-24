@@ -1,1 +1,17 @@
 
+cd D:\__OATIPlatformGenie\genie-platform
+
+# 1. Create and switch to a new branch (your staged files come along)
+git checkout -b feature/deal-schedule-planner
+
+# 2. Stage everything under packages/ (leaves scripts/ and .gitignore alone)
+git add packages/
+
+# 3. Verify — scripts/ and .gitignore should still be under "Changes not staged"
+git status
+
+# 4. Commit
+git commit -m "Add Amazon deal schedule planner dashboard and update agent queries"
+
+# 5. Push and set upstream
+git push -u origin feature/deal-schedule-planner
