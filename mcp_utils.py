@@ -73,16 +73,15 @@ def parse_mcp_output(
     # Diagnostic: shows why a scheduled tag might render empty (no deals extracted,
     # or the deal columns aren't what the linker expects). Logs to the app logger.
     _scheduled_tags = [t for t in tag_rows if _is_scheduled_tag_row(t)]
+    logger.info("dealschedule RAW scheduled_output = %s", _describe_shape(scheduled_output))
+    logger.info("dealschedule RAW purchase_output  = %s", _describe_shape(purchase_output))
     logger.info(
-        "dealschedule scheduled_output=%s | scheduled_deals=%d used_purchase=%d used_sale=%d | "
-        "deal_cols=%s | scheduled_tags=%d tag_cols=%s",
-        type(scheduled_output).__name__,
+        "dealschedule scheduled_deals=%d used_purchase=%d used_sale=%d deal_cols=%s scheduled_tags=%d",
         len(scheduled_deals),
         len(used_purchase),
         len(used_sale_product),
         sorted(scheduled_deals[0].keys()) if scheduled_deals else [],
         len(_scheduled_tags),
-        sorted(_scheduled_tags[0].keys()) if _scheduled_tags else [],
     )
 
     rule_result = apply_rules(tag_rows)
@@ -236,6 +235,27 @@ def _trans_type(row: Any) -> str:
         if v.startswith("purchase") or v.startswith("buy") or v == "p":
             return "Purchase"
     return ""
+
+
+def _describe_shape(obj: Any) -> str:
+    """Compact description of an MCP tool output: how many result sets, each set's
+    length, and the columns of its first row. Used only for diagnostics."""
+    if isinstance(obj, dict):
+        return f"dict(keys={list(obj.keys())})"
+    if not isinstance(obj, list):
+        return f"{type(obj).__name__}={obj!r}"
+    parts = []
+    for i, rs in enumerate(obj):
+        if isinstance(rs, list):
+            if rs and isinstance(rs[0], dict):
+                parts.append(f"[{i}] list len={len(rs)} cols={sorted(rs[0].keys())}")
+            else:
+                parts.append(f"[{i}] list len={len(rs)} first={type(rs[0]).__name__ if rs else 'EMPTY'}")
+        elif isinstance(rs, dict):
+            parts.append(f"[{i}] dict cols={sorted(rs.keys())}")
+        else:
+            parts.append(f"[{i}] {type(rs).__name__}={rs!r}")
+    return f"list len={len(obj)} :: " + " || ".join(parts) if parts else "list EMPTY"
 
 
 def _is_scheduled_tag_row(tag: Any) -> bool:
