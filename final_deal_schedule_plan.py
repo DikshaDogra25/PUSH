@@ -255,12 +255,14 @@ class DealSchedulePlan:
             # (get_scheduled_purchase_sale_deals) linked by ScheduleNumber; no new
             # allocation is planned for an already-scheduled tag.
             if is_scheduled:
+                deal_sched_no = ""  # ScheduleNumber lives on the scheduled deal rows
                 for i, pdl in enumerate(used_purchase):
                     if sched_pur_consumed[i]:
                         continue
                     if not DealSchedulePlan._deal_matches_tag(pdl, sched_no, cp, is_sale=False):
                         continue
                     sched_pur_consumed[i] = True
+                    deal_sched_no = deal_sched_no or DealSchedulePlan._clean(pdl.get("ScheduleNumber"))
                     rows.append(DealSchedulePlan._scheduled_purchase_row(pdl))
                 for i, sdl in enumerate(used_sale_product):
                     if sched_sale_consumed[i]:
@@ -268,7 +270,12 @@ class DealSchedulePlan:
                     if not DealSchedulePlan._deal_matches_tag(sdl, sched_no, cp, is_sale=True):
                         continue
                     sched_sale_consumed[i] = True
+                    deal_sched_no = deal_sched_no or DealSchedulePlan._clean(sdl.get("ScheduleNumber"))
                     rows.append(DealSchedulePlan._scheduled_sale_row(sdl))
+                # Prefer the tag's own ScheduleNumber, then the linked deal's; the
+                # main tag rows don't carry ScheduleNumber, the scheduled deals do.
+                if not sched_no and deal_sched_no:
+                    schedule_number = deal_sched_no
                 net = round(sum(r["volume"] for r in rows), 4)
                 plan.append(
                     {
