@@ -1,17 +1,7 @@
+I have made the changes to display the Scheduled and Unscheduled tags in the Final Deal Schedule Plan tab. Corresponding updates have also been applied to the Scheduled tags in the Tags tab and the Location Aggregation & Allocation tab.
 
-cd D:\__OATIPlatformGenie\genie-platform
+However, I am unable to display Scheduled purchase deals in the Purchase Deals tab. Following the recent changes, the procedure is no longer returning Scheduled + Unscheduled Purchase deals. Could you please update the procedure so that it returns both Scheduled and Unscheduled Purchase deals?
 
-# 1. Create and switch to a new branch (your staged files come along)
-git checkout -b feature/deal-schedule-planner
+Additionally, we have generated dummy data to display the Scheduled Tags; however, it is currently allocating the full MW volume of the Purchase and Sale deals to the Tags, leaving no room to test partial allocation. For testing purposes, could we regenerate the Scheduled Tags to reflect partial MW allocation?
 
-# 2. Stage everything under packages/ (leaves scripts/ and .gitignore alone)
-git add packages/
-
-# 3. Verify — scripts/ and .gitignore should still be under "Changes not staged"
-git status
-
-# 4. Commit
-git commit -m "Add Amazon deal schedule planner dashboard and update agent queries"
-
-# 5. Push and set upstream
-git push -u origin feature/deal-schedule-planner
+Please let me know if you have any further questions or concerns — we can schedule a meeting today if needed.
