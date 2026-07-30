@@ -1,48 +1,26 @@
-function showRowDealTooltip(e, dealNumber, rowType, tagCode, saleLeg) {
-    const dn = String(dealNumber);
-    if (rowType === 'PURCHASE') {
-      // FIX BUG#1: prefer the ALLOCATED plan row matching the specific tag; fall back to the raw deal list
-      const p = (STATE.planPurchaseDeals || []).find(x => String(x.deal_num) === dn && x.tag_code === tagCode)
-             || STATE.purchaseDeals.find(x => String(x.deal_num) === dn);
-      if (p) return showFlowTooltip(e, 'PurchaseDeal', p.id, p.location);
-    } else if (rowType === 'SALE') {
-      // FIX: Use tagCode and saleLeg to uniquely identify the sale deal, especially for PENDING ones
-      const s = STATE.saleDeals.find(x => x.tag_code === tagCode && x.leg === saleLeg);
-      if (s) return showFlowTooltip(e, 'SaleDeal', s.id, s.location);
-    }
-  }
+const pInitArr  = Array.isArray(purch.initial_mw) ? purch.initial_mw : pAvailArr;
+      const pTotSum   = pInitArr ? pInitArr.reduce((s, v) => s + (Number(v) || 0), 0) : 0;
+      const pUsedSum  = pUsedArr ? pUsedArr.reduce((s, v) => s + (Number(v) || 0), 0) : 0;
+      
+      // FIX: Set Available to the pre-draw Total capacity instead of leftover capacity (Total - Used)
+      const pAvailSum = pTotSum;
 
-return rows.map(function (r, i) {
-        const isPur = r.type === "PURCHASE";
-        if (!isPur) __saleOrd++;
-        // Type column shows only PURCHASE / SALE -- no Scheduled/Unscheduled
-        // sub-badge on any row.
-        const badge = `<span class="status-badge ${isPur ? 'orange' : 'green'}" style="display:inline-block;">${isPur ? 'Purchase' : 'Sale'}</span>`;
-        const volColor = isPur ? 'var(--orange)' : 'var(--green)';
-        const v = Number(r.volume || 0);
-        const vol = `<span style="color:${volColor}">${v > 0 ? '+' : ''}${v.toFixed(1)}</span>`;
-        let trClass = blockClass + (i === 0 ? " block-start" : "");
-        return `<tr class="${trClass}">
-                  ${i === 0 ? leadCells : ""}
-                  <td>${badge}</td>
-                  <td style="font-family:var(--mono); font-weight:600; cursor:pointer; text-decoration:underline dotted var(--ink-dim); text-underline-offset:3px;"
-                      onmousemove="showRowDealTooltip(event,'${r.deal_number}','${r.type}')" onmouseout="hideFlowTooltip()">${r.deal_number}</td>
-
-return rows.map(function (r, i) {
-        const isPur = r.type === "PURCHASE";
-        if (!isPur) __saleOrd++;
-        // Determine the sale leg for this specific row (empty string if it's a purchase)
-        const saleLegArg = isPur ? '' : __saleLeg(r, __saleOrd);
-        
-        // Type column shows only PURCHASE / SALE -- no Scheduled/Unscheduled
-        // sub-badge on any row.
-        const badge = `<span class="status-badge ${isPur ? 'orange' : 'green'}" style="display:inline-block;">${isPur ? 'Purchase' : 'Sale'}</span>`;
-        const volColor = isPur ? 'var(--orange)' : 'var(--green)';
-        const v = Number(r.volume || 0);
-        const vol = `<span style="color:${volColor}">${v > 0 ? '+' : ''}${v.toFixed(1)}</span>`;
-        let trClass = blockClass + (i === 0 ? " block-start" : "");
-        return `<tr class="${trClass}">
-                  ${i === 0 ? leadCells : ""}
-                  <td>${badge}</td>
-                  <td style="font-family:var(--mono); font-weight:600; cursor:pointer; text-decoration:underline dotted var(--ink-dim); text-underline-offset:3px;"
-                      onmousemove="showRowDealTooltip(event,'${r.deal_number}','${r.type}','${g.tag_code}','${saleLegArg}')" onmouseout="hideFlowTooltip()">${r.deal_number}</td>
+for src, idxs in by_src.items():
+            scheduled = [i for i in idxs if DealSchedulePlan._is_scheduled_tag(tagdata[i])]
+            unscheduled = [i for i in idxs if not DealSchedulePlan._is_scheduled_tag(tagdata[i])]
+            src_a = tot_a.get(src, {})
+            src_b = tot_b.get(src, {})
+            # Initial (pre-allocation) source totals, constant per source -> hover "Total".
+            iA = [round(float(src_a.get(he, 0.0) or 0.0), 4) for he in HES]
+            iB = [round(float(src_b.get(he, 0.0) or 0.0), 4) for he in HES]
+            run_a = {he: float(src_a.get(he, 0.0) or 0.0) for he in HES}
+            run_b = {he: float(src_b.get(he, 0.0) or 0.0) for he in HES}
+            for i in scheduled + unscheduled:
+                tag = tagdata[i]
+                
+                # FIX: Ignore the sale leg from index and ALWAYS allocate from Product A bucket first, 
+                # then overflow to Product B bucket.
+                b_first = False
+                
+                aA, uA, aB, uB = [], [], [], []
+                for he in HES:
