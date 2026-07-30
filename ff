@@ -1,3 +1,4 @@
+showFlowTooltip
 const pInitArr  = Array.isArray(purch.initial_mw) ? purch.initial_mw : pAvailArr;
       const pTotSum   = pInitArr ? pInitArr.reduce((s, v) => s + (Number(v) || 0), 0) : 0;
       const pUsedSum  = pUsedArr ? pUsedArr.reduce((s, v) => s + (Number(v) || 0), 0) : 0;
@@ -5,6 +6,7 @@ const pInitArr  = Array.isArray(purch.initial_mw) ? purch.initial_mw : pAvailArr
       // FIX: Set Available to the pre-draw Total capacity instead of leftover capacity (Total - Used)
       const pAvailSum = pTotSum;
 
+_compute_tag_sale_profiles
 for src, idxs in by_src.items():
             scheduled = [i for i in idxs if DealSchedulePlan._is_scheduled_tag(tagdata[i])]
             unscheduled = [i for i in idxs if not DealSchedulePlan._is_scheduled_tag(tagdata[i])]
