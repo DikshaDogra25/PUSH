@@ -1,1 +1,110 @@
+    @staticmethod
+    def _resolve_cp(source, a_by_source, b_by_source):
+        """Map a tag's ACTUAL source to the grouped CP it belongs to.
+          1) exact CP hit wins (single-source groups: name == member),
+          2) else find the group whose Source_Temp lists this source,
+          3) else 'All' (the shared ruled-out pool).
+        """
+        src = DealSchedulePlan._clean(source)
+        if src in a_by_source or src in b_by_source:
+            return src
+        for mapping in (a_by_source, b_by_source):
+            for cp_key, entry in mapping.items():
+                temp = (entry or {}).get("source_temp", "") or ""
+                parts = [p.strip() for p in temp.split(",") if p.strip()]
+                if src in parts:
+                    return cp_key
+        return "All"
 
+    @staticmethod
+    def _source_group_map(a_by_source, b_by_source):
+        """From the grouped sale curves build:
+          src_to_group: actual source -> group CP
+          group_order:  group CP -> [member sources in Source_Temp order]
+        """
+        src_to_group: dict[str, str] = {}
+        group_order: dict[str, list] = {}
+        for mapping in (a_by_source, b_by_source):
+            for cp_key, entry in mapping.items():
+                temp = (entry or {}).get("source_temp", "") or ""
+                parts = [p.strip() for p in temp.split(",") if p.strip()]
+                if cp_key not in group_order:
+                    group_order[cp_key] = parts if parts else [cp_key]
+                for p in parts:
+                    src_to_group.setdefault(p, cp_key)
+                if not parts:
+                    src_to_group.setdefault(cp_key, cp_key)
+        return src_to_group, group_order
+
+before
+    def _compute_tag_sale_profiles(tagdata, tot_a, tot_b, used_sale_product=None):
+        ...
+        def eff_src(tag):
+            s = DealSchedulePlan._clean(tag.get("Source"))
+            return s if (s in tot_a or s in tot_b) else "All"
+
+        by_src: dict[str, list[int]] = {}
+        for i, tag in enumerate(tagdata or []):
+            by_src.setdefault(eff_src(tag), []).append(i)
+
+        profiles: dict[int, dict] = {}
+        for src, idxs in by_src.items():
+            scheduled = [i for i in idxs if DealSchedulePlan._is_scheduled_tag(tagdata[i])]
+            unscheduled = [i for i in idxs if not DealSchedulePlan._is_scheduled_tag(tagdata[i])]
+            src_a = tot_a.get(src, {})
+            src_b = tot_b.get(src, {})
+            iA = [round(float(src_a.get(he, 0.0) or 0.0), 4) for he in HES]
+            iB = [round(float(src_b.get(he, 0.0) or 0.0), 4) for he in HES]
+            run_a = {he: float(src_a.get(he, 0.0) or 0.0) for he in HES}
+            run_b = {he: float(src_b.get(he, 0.0) or 0.0) for he in HES}
+            for i in scheduled + unscheduled:
+                ...  # A-first draw
+
+    def _compute_tag_sale_profiles(
+        tagdata, tot_a, tot_b, used_sale_product=None, src_to_group=None, group_order=None
+    ):
+        ...
+        src_to_group = src_to_group or {}
+        group_order = group_order or {}
+
+        def eff_group(tag):
+            s = DealSchedulePlan._clean(tag.get("Source"))
+            g = src_to_group.get(s)
+            if g:
+                return g
+            return s if (s in tot_a or s in tot_b) else "All"
+
+        by_grp: dict[str, list[int]] = {}
+        for i, tag in enumerate(tagdata or []):
+            by_grp.setdefault(eff_group(tag), []).append(i)
+
+        profiles: dict[int, dict] = {}
+        for grp, idxs in by_grp.items():
+            order = group_order.get(grp, [])
+
+            def _sort_key(i):
+                s = DealSchedulePlan._clean(tagdata[i].get("Source"))
+                pos = order.index(s) if s in order else len(order)  # Source_Temp order
+                sched = 0 if DealSchedulePlan._is_scheduled_tag(tagdata[i]) else 1  # scheduled first
+                return (pos, sched, i)
+
+            ordered = sorted(idxs, key=_sort_key)
+            grp_a = tot_a.get(grp, {})
+            grp_b = tot_b.get(grp, {})
+            iA = [round(float(grp_a.get(he, 0.0) or 0.0), 4) for he in HES]
+            iB = [round(float(grp_b.get(he, 0.0) or 0.0), 4) for he in HES]
+            run_a = {he: float(grp_a.get(he, 0.0) or 0.0) for he in HES}
+            run_b = {he: float(grp_b.get(he, 0.0) or 0.0) for he in HES}
+            for i in ordered:
+                ...  # A-first draw (unchanged inner loop)
+
+before
+        tot_a, tot_b, _use_a, _use_b = DealSchedulePlan._build_total_used_curves(saledeals)
+        tag_profiles = DealSchedulePlan._compute_tag_sale_profiles(tagdata, tot_a, tot_b, used_sale_product)
+
+        tot_a, tot_b, _use_a, _use_b = DealSchedulePlan._build_total_used_curves(saledeals)
+        # product_list is grouped (CP = ruleset source, Source_Temp = member sources).
+        src_to_group, group_order = DealSchedulePlan._source_group_map(a_by_source, b_by_source)
+        tag_profiles = DealSchedulePlan._compute_tag_sale_profiles(
+            tagdata, tot_a, tot_b, used_sale_product, src_to_group, group_order
+        )
